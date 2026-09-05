@@ -1,5 +1,9 @@
+import 'dart:convert';
+import 'dart:io';
+
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:pasteboard/pasteboard.dart';
 import 'package:uuid/uuid.dart';
 
 import '../data/repositories/sqlite_history_repository.dart';
@@ -9,6 +13,7 @@ import '../domain/repositories/interfaces.dart';
 import '../platform/desktop_platform_services.dart';
 import '../platform/polling_clipboard_monitor.dart';
 import '../security/heuristic_secret_detector.dart';
+import '../services/app_log.dart';
 import '../settings/app_settings.dart';
 import '../settings/settings_repository.dart';
 
@@ -51,8 +56,14 @@ final settingsProvider =
 
 class SettingsController extends StateNotifier<AppSettings> {
   final SettingsRepository _repo;
+
+  /// Konczy sie, gdy ustawienia zostana wczytane z dysku. Trzeba na to
+  /// poczekac przed pierwszym odczytem (np. rejestracja skrotu w main),
+  /// inaczej dostaje sie wartosci domyslne zamiast zapisanych przez usera.
+  late final Future<void> initialized;
+
   SettingsController(this._repo) : super(AppSettings.defaults()) {
-    _load();
+    initialized = _load();
   }
 
   Future<void> _load() async {
@@ -97,6 +108,8 @@ class HistoryController extends StateNotifier<List<ClipItem>> {
     required this.getSettings,
   }) : super([]) {
     clipboardMonitor.onNewClipboardText.listen(_handleNewClipboardText);
+    clipboardMonitor.onNewClipboardImage.listen(_handleNewClipboardImage);
+    clipboardMonitor.onNewClipboardFiles.listen(_handleNewClipboardFiles);
     _refresh();
   }
 
@@ -141,25 +154,126 @@ class HistoryController extends StateNotifier<List<ClipItem>> {
       await historyRepository.add(item);
     }
 
+    await _enforceRetention(settings);
+    await _refresh();
+  }
+
+  Future<void> _enforceRetention(AppSettings settings) async {
     await historyRepository.enforceLimit(settings.historyLimit);
     if (settings.retentionPeriod != null) {
       await historyRepository.deleteOlderThan(settings.retentionPeriod!);
     }
+  }
+
+  Future<void> _handleNewClipboardImage(Uint8List bytes) async {
+    final settings = getSettings();
+    await AppLog.write(
+        'history: image event ${bytes.length}B (monitoring=${settings.monitoringEnabled}, images=${settings.imagesEnabled})');
+    if (!settings.monitoringEnabled || !settings.imagesEnabled) return;
+    if (bytes.isEmpty ||
+        bytes.length > PollingClipboardMonitor.maxImageBytes) {
+      return;
+    }
+
+    final duplicate = await historyRepository.findDuplicateImage(bytes);
+    if (duplicate != null) {
+      // Przenieś na początek, zaktualizuj metadane zamiast duplikować.
+      final updated = duplicate.copyWith(lastUsedAt: DateTime.now());
+      await historyRepository.update(updated);
+    } else {
+      final id = _uuid.v4();
+      final path = await historyRepository.saveImage(id, bytes);
+      final item = ClipItem(
+        id: id,
+        content: path,
+        type: ClipContentType.image,
+        copiedAt: DateTime.now(),
+      );
+      await historyRepository.add(item);
+      await AppLog.write(
+          'history: saved image ${(bytes.length / 1024).round()} KB');
+    }
+
+    await _enforceRetention(settings);
+    await _refresh();
+  }
+
+  Future<void> _handleNewClipboardFiles(List<String> paths) async {
+    final settings = getSettings();
+    if (!settings.monitoringEnabled || !settings.imagesEnabled) return;
+    if (paths.isEmpty) return;
+
+    final content = jsonEncode(paths);
+    if (content.length > 200000) return;
+
+    final duplicate = await historyRepository.findDuplicate(content);
+    if (duplicate != null) {
+      final updated = duplicate.copyWith(lastUsedAt: DateTime.now());
+      await historyRepository.update(updated);
+    } else {
+      final item = ClipItem(
+        id: _uuid.v4(),
+        content: content,
+        type: ClipContentType.file,
+        copiedAt: DateTime.now(),
+      );
+      await historyRepository.add(item);
+      await AppLog.write('history: saved ${paths.length} file(s)');
+    }
+
+    await _enforceRetention(settings);
     await _refresh();
   }
 
   /// Kopiuje element z powrotem do schowka - sygnalizuje monitorowi,
   /// żeby pominął tę zmianę i nie stworzył pętli / duplikatu.
   Future<void> copyToClipboard(ClipItem item) async {
+    if (item.type == ClipContentType.image) {
+      await _copyImageToClipboard(item);
+      return;
+    }
+    if (item.type == ClipContentType.file) {
+      await _copyFilesToClipboard(item);
+      return;
+    }
     clipboardMonitor.suppressNextChange();
     await Clipboard.setData(ClipboardData(text: item.content));
+    await _afterCopy(item);
+  }
 
+  Future<void> _afterCopy(ClipItem item) async {
     final updated = item.copyWith(
       lastUsedAt: DateTime.now(),
       useCount: item.useCount + 1,
     );
     await historyRepository.update(updated);
     await _refresh();
+  }
+
+  Future<void> _copyImageToClipboard(ClipItem item) async {
+    try {
+      final file = File(item.content);
+      if (!await file.exists()) return;
+      final bytes = await file.readAsBytes();
+      clipboardMonitor.suppressNextImage();
+      await Pasteboard.writeImage(bytes);
+      await _afterCopy(item);
+    } catch (_) {
+      // Np. usuniety recznie plik - po prostu nic nie robimy.
+    }
+  }
+
+  Future<void> _copyFilesToClipboard(ClipItem item) async {
+    try {
+      final paths = (jsonDecode(item.content) as List)
+          .cast<String>()
+          .where((p) => File(p).existsSync())
+          .toList();
+      if (paths.isEmpty) return;
+      clipboardMonitor.suppressNextFiles();
+      await Pasteboard.writeFiles(paths);
+      await _afterCopy(item);
+    } catch (_) {}
   }
 
   Future<void> togglePin(ClipItem item) async {

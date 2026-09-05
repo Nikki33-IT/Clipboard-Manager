@@ -1,6 +1,6 @@
 /// Aktualna wersja aplikacji - musi być zgodna z `version:` w pubspec.yaml.
 /// Podbijaj ręcznie przy każdym wydaniu (np. przed utworzeniem GitHub Release).
-const String kAppVersion = '0.1.1';
+const String kAppVersion = '0.2.0';
 
 /// Adres repozytorium GitHub w formacie "wlasciciel/nazwa-repo".
 /// Wymagany przez UpdateChecker do budowania URL API GitHub.

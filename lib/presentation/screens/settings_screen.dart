@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:window_manager/window_manager.dart';
 
 import '../../app_version.dart';
 import '../../application/providers.dart';
@@ -73,6 +74,14 @@ class SettingsScreen extends ConsumerWidget {
                 onChanged: (value) => controller.apply(
                   settings.copyWith(retentionPeriod: () => value),
                 ),
+              ),
+            ),
+            _SettingsSwitch(
+              label: 'Zapisuj obrazy i pliki',
+              subtitle: 'Zrzuty ekranu (PrintScreen) i kopiowane pliki',
+              value: settings.imagesEnabled,
+              onChanged: (v) => controller.apply(
+                settings.copyWith(imagesEnabled: v),
               ),
             ),
           ],
@@ -404,12 +413,40 @@ class SettingsScreen extends ConsumerWidget {
     exit(0);
   }
 
+  static bool _isModifierKey(LogicalKeyboardKey key) =>
+      key == LogicalKeyboardKey.controlLeft ||
+      key == LogicalKeyboardKey.controlRight ||
+      key == LogicalKeyboardKey.shiftLeft ||
+      key == LogicalKeyboardKey.shiftRight ||
+      key == LogicalKeyboardKey.altLeft ||
+      key == LogicalKeyboardKey.altRight ||
+      key == LogicalKeyboardKey.metaLeft ||
+      key == LogicalKeyboardKey.metaRight;
+
+  /// Buduje tekst skrotu z fizycznego stanu klawiatury. Zwraca null, gdy
+  /// nie da sie zbudowac poprawnej kombinacji (brak modyfikatora albo
+  /// klawisz bez jednoczesnej etykiety).
+  static String? _comboFromHardware(LogicalKeyboardKey? mainKey) {
+    final hw = HardwareKeyboard.instance;
+    final parts = <String>[];
+    if (hw.isControlPressed) parts.add('Ctrl');
+    if (hw.isShiftPressed) parts.add('Shift');
+    if (hw.isAltPressed) parts.add('Alt');
+    if (hw.isMetaPressed) parts.add('Win');
+    if (mainKey != null) {
+      if (mainKey.keyLabel.length != 1) return null;
+      parts.add(mainKey.keyLabel.toUpperCase());
+    }
+    if (mainKey != null && parts.length < 2) return null;
+    return parts.join('+');
+  }
+
   Future<void> _showShortcutDialog(
     BuildContext context,
     WidgetRef ref,
     AppSettings settings,
   ) async {
-    final captured = <String>{};
+    String? combo; // zaakceptowana kombinacja (null = jeszcze brak)
     String display = settings.globalShortcut;
 
     final result = await showDialog<String>(
@@ -423,12 +460,23 @@ class SettingsScreen extends ConsumerWidget {
               focusNode: FocusNode()..requestFocus(),
               autofocus: true,
               onKeyEvent: (event) {
-                if (event is KeyDownEvent) {
-                  final label = event.logicalKey.keyLabel;
-                  if (label.isNotEmpty) {
-                    captured.add(label);
-                    setState(() => display = captured.join('+'));
-                  }
+                // Modyfikatory sledzimy ze stanu klawiatury, a nie z etykiet
+                // klawiszy - etykiety typu "Control Left" produkowaly dawniej
+                // nieprawidlowe skroty w stylu "Control Left+X".
+                if (event is! KeyDownEvent) return;
+                final key = event.logicalKey;
+                if (_isModifierKey(key)) {
+                  setState(() => display = '${_comboFromHardware(null)}…');
+                } else {
+                  final built = _comboFromHardware(key);
+                  setState(() {
+                    if (built != null) {
+                      combo = built;
+                      display = built;
+                    } else {
+                      display = 'Przytrzymaj Ctrl/Shift/Alt i naciśnij klawisz…';
+                    }
+                  });
                 }
               },
               child: Container(
@@ -451,7 +499,7 @@ class SettingsScreen extends ConsumerWidget {
               child: const Text('Anuluj'),
             ),
             FilledButton(
-              onPressed: () => Navigator.pop(context, display),
+              onPressed: combo == null ? null : () => Navigator.pop(context, combo),
               child: const Text('Zapisz'),
             ),
           ],
@@ -463,11 +511,19 @@ class SettingsScreen extends ConsumerWidget {
       final controller = ref.read(settingsProvider.notifier);
       await controller.apply(settings.copyWith(globalShortcut: result));
 
+      // Rejestrujemy od razu z PRAWDZIWYM callbackiem - wczesniej byl tu
+      // pusty callback i skrot milkl az do restartu aplikacji.
       final shortcutService = ref.read(globalShortcutServiceProvider);
-      await shortcutService.register(result, () {
-        // Rejestracja przekierowywana centralnie w main.dart przy starcie;
-        // tutaj tylko aktualizujemy skrót na nowy accelerator.
+      await shortcutService.register(result, () async {
+        await windowManager.show();
+        await windowManager.focus();
       });
+
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Skrót zmieniony na $result')),
+        );
+      }
     }
   }
 

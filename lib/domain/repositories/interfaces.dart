@@ -1,8 +1,13 @@
+import 'dart:typed_data';
+
 import '../entities/clip_item.dart';
 
-/// Monitoruje systemowy schowek i emituje nową zawartość tekstową.
+/// Monitoruje systemowy schowek i emituje nowa zawartosc: tekstowa,
+/// obrazkowa (PNG) oraz listy kopiowanych plikow.
 abstract class ClipboardMonitor {
   Stream<String> get onNewClipboardText;
+  Stream<Uint8List> get onNewClipboardImage;
+  Stream<List<String>> get onNewClipboardFiles;
   void start();
   void pause();
   void resume();
@@ -11,9 +16,13 @@ abstract class ClipboardMonitor {
   /// Wywoływane przed wewnętrznym ustawieniem schowka przez aplikację,
   /// żeby monitor nie złapał własnego zapisu (zapobiega pętli).
   void suppressNextChange();
+
+  /// Jw. dla wlasnego zapisu obrazka / plikow.
+  void suppressNextImage();
+  void suppressNextFiles();
 }
 
-/// Trwałe przechowywanie historii (SQLite).
+/// Trwałe przechowywanie historii (SQLite + pliki PNG obrazkow).
 abstract class HistoryRepository {
   Future<List<ClipItem>> getAll({String? searchQuery, ClipContentType? filterType});
   Future<void> add(ClipItem item);
@@ -23,6 +32,12 @@ abstract class HistoryRepository {
   Future<void> enforceLimit(int? maxItems);
   Future<void> deleteOlderThan(Duration retention);
   Future<ClipItem?> findDuplicate(String content);
+
+  /// Zapisuje bajty obrazka do pliku i zwraca jego sciezke (do pola content).
+  Future<String> saveImage(String id, Uint8List bytes);
+
+  /// Szuka wpisu z identycznym obrazkiem (porownanie bajtow).
+  Future<ClipItem?> findDuplicateImage(Uint8List bytes);
 }
 
 /// Wykrywanie potencjalnie wrażliwych danych (klucze, hasła, tokeny...).

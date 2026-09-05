@@ -1,4 +1,4 @@
-enum ClipContentType { text, multilineText, link, email, image, html, rtf }
+enum ClipContentType { text, multilineText, link, email, image, html, rtf, file }
 
 class ClipItem {
   final String id;

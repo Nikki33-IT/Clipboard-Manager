@@ -1,3 +1,6 @@
+import 'dart:convert';
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 
 import '../../domain/entities/clip_item.dart';
@@ -42,17 +45,46 @@ class ClipTile extends StatelessWidget {
         return (Icons.description_outlined, 'RTF');
       case ClipContentType.text:
         return (Icons.short_text, 'Tekst');
+      case ClipContentType.file:
+        return (Icons.folder_outlined, 'Pliki');
     }
   }
 
   static String _previewText(String content) =>
       content.length > 160 ? '${content.substring(0, 160)}…' : content;
 
+  /// Nazwy plikow dla wpisu typu file (content = JSON z lista sciezek).
+  List<String> get _fileNames {
+    if (item.type != ClipContentType.file) return const [];
+    try {
+      return (jsonDecode(item.content) as List).cast<String>();
+    } catch (_) {
+      return const [];
+    }
+  }
+
+  String _previewFallback() {
+    if (item.type != ClipContentType.file) return _previewText(item.content);
+    final joined =
+        _fileNames.map((p) => p.split(RegExp(r'[\\/]')).last).join(', ');
+    return joined.length > 160 ? '${joined.substring(0, 160)}…' : joined;
+  }
+
+  /// Tekst zrodlowy podgladu: obrazki nie maja tekstu (jest miniaturka).
+  String _previewSourceText() {
+    if (item.type == ClipContentType.image) return '';
+    return _previewFallback();
+  }
+
   /// Podglad tresci z podswietlona fraza wyszukiwania (case-insensitive).
+  /// Dla obrazkow nie ma tekstu - zwraca pusta tresc (w karcie widac miniaturke).
   InlineSpan _previewSpan(ColorScheme scheme) {
-    final text = item.isSecret ? '••••••••••••' : _previewText(item.content);
+    final text =
+        item.isSecret ? '••••••••••••' : _previewSourceText();
     final query = highlight.trim();
-    if (query.isEmpty || item.isSecret) return TextSpan(text: text);
+    if (query.isEmpty || item.isSecret || item.type == ClipContentType.image) {
+      return TextSpan(text: text);
+    }
     final lower = text.toLowerCase();
     final needle = query.toLowerCase();
     final spans = <TextSpan>[];
@@ -95,7 +127,10 @@ class ClipTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     final textTheme = Theme.of(context).textTheme;
-    final (typeIcon, typeLabel) = _typeMeta;
+    final (typeIcon, rawTypeLabel) = _typeMeta;
+    final typeLabel = item.type == ClipContentType.file
+        ? '$rawTypeLabel (${_fileNames.length})'
+        : rawTypeLabel;
 
     final preview = _previewSpan(scheme);
     final meta = item.isSecret
@@ -123,10 +158,13 @@ class ClipTile extends StatelessWidget {
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                _TypeBadge(
-                  icon: item.isSecret ? Icons.lock_outline : typeIcon,
-                  isSecret: item.isSecret,
-                ),
+                if (item.type == ClipContentType.image)
+                  _ImageThumb(path: item.content)
+                else
+                  _TypeBadge(
+                    icon: item.isSecret ? Icons.lock_outline : typeIcon,
+                    isSecret: item.isSecret,
+                  ),
                 const SizedBox(width: 12),
                 Expanded(
                   child: Column(
@@ -182,6 +220,31 @@ class ClipTile extends StatelessWidget {
               ],
             ),
           ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Miniaturka obrazka ze schowka. Przy braku pliku (usuniety recznie)
+/// pokazuje zastepcza ikone zamiast wywalac karty.
+class _ImageThumb extends StatelessWidget {
+  final String path;
+
+  const _ImageThumb({required this.path});
+
+  @override
+  Widget build(BuildContext context) {
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(12),
+      child: Image.file(
+        File(path),
+        width: 48,
+        height: 48,
+        fit: BoxFit.cover,
+        errorBuilder: (_, __, ___) => const _TypeBadge(
+          icon: Icons.broken_image_outlined,
+          isSecret: false,
         ),
       ),
     );

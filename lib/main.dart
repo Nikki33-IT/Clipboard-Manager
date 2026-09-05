@@ -6,6 +6,7 @@ import 'package:hotkey_manager/hotkey_manager.dart';
 import 'package:window_manager/window_manager.dart';
 
 import 'application/providers.dart';
+import 'platform/desktop_platform_services.dart';
 import 'presentation/app.dart';
 import 'services/app_log.dart';
 
@@ -54,7 +55,21 @@ class _RootAppState extends ConsumerState<_RootApp> with WindowListener {
     final history = ref.read(historyControllerProvider.notifier);
     final tray = ref.read(trayServiceProvider);
     final shortcutService = ref.read(globalShortcutServiceProvider);
-    final settings = ref.read(settingsProvider);
+
+    // Poczekaj na wczytanie ustawien z dysku - inaczej rejestracja skrotu
+    // (i start zminimalizowany) wzielaby wartosci domyslne.
+    await ref.read(settingsProvider.notifier).initialized;
+    var settings = ref.read(settingsProvider);
+
+    // Samonaprawa: jesli w ustawieniach siedzi nieprawidlowy skrot
+    // (np. "Control Left+X" ze starego dialogu), wroc do domyslnego.
+    if (!HotkeyShortcutService.isValidAccelerator(settings.globalShortcut)) {
+      await AppLog.write(
+          'app: invalid shortcut "${settings.globalShortcut}", fallback to default');
+      settings = settings.copyWith(
+          globalShortcut: HotkeyShortcutService.defaultAccelerator);
+      await ref.read(settingsProvider.notifier).apply(settings);
+    }
 
     history.startMonitoring();
     await AppLog.write('app: monitoring started');
@@ -105,10 +120,17 @@ class _RootAppState extends ConsumerState<_RootApp> with WindowListener {
       await AppLog.write('app: started minimized');
     }
 
-    await shortcutService.register(settings.globalShortcut, () async {
-      await windowManager.show();
-      await windowManager.focus();
-    });
+    try {
+      await shortcutService.register(settings.globalShortcut, () async {
+        await AppLog.write('hotkey: fired, showing window');
+        await windowManager.show();
+        await windowManager.focus();
+      });
+      await AppLog.write(
+          'app: shortcut registered (${settings.globalShortcut})');
+    } catch (e) {
+      await AppLog.write('app: shortcut register FAILED: $e');
+    }
   }
 
   /// Pelne zamkniecie: zdejmij ikone z traya, wylacz przechwytywanie

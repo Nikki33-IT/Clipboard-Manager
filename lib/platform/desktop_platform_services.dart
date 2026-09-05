@@ -117,10 +117,17 @@ class _TrayListener with TrayListener {
 
   @override
   void onTrayIconMouseDown() {
-    // Lewy klik pokazuje menu (z "Zamknij aplikacje"), a nie tylko okno -
-    // inaczej opcja zamkniecia jest dla uzytkownika nie do znalezienia.
+    // LEWY przycisk: menu (opcje, zamykanie).
     AppLog.write('tray: left-click icon -> popup menu');
     _popupMenu();
+  }
+
+  @override
+  void onTrayIconRightMouseDown() {
+    // PRAWY przycisk: otwieranie okna apki. Natywne menu NIE wyskakuje
+    // samo z siebie - pokazuje je tylko jawne popUpContextMenu() wyzej.
+    AppLog.write('tray: right-click icon -> open window');
+    onOpenHistory();
   }
 
   /// Pokazanie menu z obsluga bledow - wywolanie jest async, a listener
@@ -154,17 +161,75 @@ class LaunchAtStartupService implements StartupService {
 }
 
 class HotkeyShortcutService implements GlobalShortcutService {
+  static const defaultAccelerator = 'Ctrl+Shift+V';
   HotKey? _registered;
+
+  /// Sprawdza czy tekst skrotu ma sens: min. 1 modyfikator + dokladnie
+  /// 1 klawisz. Chroni przed smieciami typu "Control Left+X" (takie cos
+  /// kiedys zapisywal dialog) i przed samotna litera jako skrotem globalnym.
+  static bool isValidAccelerator(String accelerator) {
+    final parts = accelerator
+        .split('+')
+        .map((p) => _normalizePart(p.trim().toLowerCase()))
+        .where((p) => p.isNotEmpty)
+        .toList();
+    if (parts.length < 2) return false;
+    var mods = 0;
+    var keys = 0;
+    for (final part in parts) {
+      if (_isModifier(part)) {
+        mods++;
+      } else if (part.length == 1 || _functionKeys.contains(part)) {
+        keys++;
+      } else {
+        return false;
+      }
+    }
+    return mods >= 1 && keys == 1;
+  }
+
+  static final _functionKeys = {
+    for (var i = 1; i <= 12; i++) 'f$i',
+  };
+
+  /// Wycina okreslenia strony ("left"/"right") z etykiet w stylu
+  /// "Control Left" czy "Left Shift" - obie kolejnosci wystepuja na roznych
+  /// ukladach klawiatur i w roznych wersjach dialogu.
+  static String _normalizePart(String part) {
+    var p = ' $part ';
+    for (final side in [' left ', ' right ']) {
+      p = p.replaceAll(side, ' ');
+    }
+    return p.trim().replaceAll(RegExp(r'\s+'), ' ');
+  }
+
+  static bool _isModifier(String part) =>
+      part == 'ctrl' ||
+      part == 'control' ||
+      part.startsWith('control') ||
+      part == 'shift' ||
+      part.startsWith('shift') ||
+      part == 'alt' ||
+      part.startsWith('alt') ||
+      part == 'cmd' ||
+      part == 'meta' ||
+      part.startsWith('meta') ||
+      part == 'win' ||
+      part.startsWith('win');
 
   @override
   Future<void> register(String accelerator, void Function() callback) async {
     await unregister();
-    final hotKey = _parseAccelerator(accelerator);
+    final hotKey = parseAccelerator(accelerator);
     await hotKeyManager.register(
       hotKey,
       keyDownHandler: (_) => callback(),
     );
     _registered = hotKey;
+    // UWAGA: natywny RegisterHotKey nie zglasza bledu, gdy system odrzuci
+    // skrot (zajety przez inna apke) - wtedy po prostu nigdy nie przyjdzie
+    // zdarzenie. Stad log "fired" w callbacku jako jedyny dowod dzialania.
+    await AppLog.write('hotkey: registered "$accelerator"');
   }
 
   @override
@@ -175,7 +240,11 @@ class HotkeyShortcutService implements GlobalShortcutService {
     }
   }
 
-  static const Map<String, PhysicalKeyboardKey> _letterKeys = {
+  /// Publiczny wrapper dla testow jednostkowych.
+  static HotKey parseAccelerator(String accelerator) =>
+      _parseAccelerator(accelerator);
+
+  static const Map<String, PhysicalKeyboardKey> _keyMap = {
     'A': PhysicalKeyboardKey.keyA, 'B': PhysicalKeyboardKey.keyB,
     'C': PhysicalKeyboardKey.keyC, 'D': PhysicalKeyboardKey.keyD,
     'E': PhysicalKeyboardKey.keyE, 'F': PhysicalKeyboardKey.keyF,
@@ -189,36 +258,51 @@ class HotkeyShortcutService implements GlobalShortcutService {
     'U': PhysicalKeyboardKey.keyU, 'V': PhysicalKeyboardKey.keyV,
     'W': PhysicalKeyboardKey.keyW, 'X': PhysicalKeyboardKey.keyX,
     'Y': PhysicalKeyboardKey.keyY, 'Z': PhysicalKeyboardKey.keyZ,
+    '0': PhysicalKeyboardKey.digit0, '1': PhysicalKeyboardKey.digit1,
+    '2': PhysicalKeyboardKey.digit2, '3': PhysicalKeyboardKey.digit3,
+    '4': PhysicalKeyboardKey.digit4, '5': PhysicalKeyboardKey.digit5,
+    '6': PhysicalKeyboardKey.digit6, '7': PhysicalKeyboardKey.digit7,
+    '8': PhysicalKeyboardKey.digit8, '9': PhysicalKeyboardKey.digit9,
+    'F1': PhysicalKeyboardKey.f1, 'F2': PhysicalKeyboardKey.f2,
+    'F3': PhysicalKeyboardKey.f3, 'F4': PhysicalKeyboardKey.f4,
+    'F5': PhysicalKeyboardKey.f5, 'F6': PhysicalKeyboardKey.f6,
+    'F7': PhysicalKeyboardKey.f7, 'F8': PhysicalKeyboardKey.f8,
+    'F9': PhysicalKeyboardKey.f9, 'F10': PhysicalKeyboardKey.f10,
+    'F11': PhysicalKeyboardKey.f11, 'F12': PhysicalKeyboardKey.f12,
   };
 
-  HotKey _parseAccelerator(String accelerator) {
-    final parts = accelerator.split('+').map((p) => p.trim().toLowerCase()).toList();
+  static HotKey _parseAccelerator(String accelerator) {
+    final parts = accelerator
+        .split('+')
+        .map((p) => _normalizePart(p.trim().toLowerCase()))
+        .toList();
     final modifiers = <HotKeyModifier>[];
     String letter = 'V';
 
+    void addMod(HotKeyModifier m) {
+      if (!modifiers.contains(m)) modifiers.add(m);
+    }
+
     for (final part in parts) {
-      switch (part) {
-        case 'ctrl':
-        case 'control':
-          modifiers.add(HotKeyModifier.control);
-          break;
-        case 'shift':
-          modifiers.add(HotKeyModifier.shift);
-          break;
-        case 'alt':
-          modifiers.add(HotKeyModifier.alt);
-          break;
-        case 'cmd':
-        case 'meta':
-          modifiers.add(HotKeyModifier.meta);
-          break;
-        default:
-          if (part.length == 1) letter = part.toUpperCase();
+      if (part == 'ctrl' || part == 'control' || part.startsWith('control')) {
+        addMod(HotKeyModifier.control);
+      } else if (part == 'shift' || part.startsWith('shift')) {
+        addMod(HotKeyModifier.shift);
+      } else if (part == 'alt' || part.startsWith('alt')) {
+        addMod(HotKeyModifier.alt);
+      } else if (part == 'cmd' ||
+          part == 'meta' ||
+          part.startsWith('meta') ||
+          part == 'win' ||
+          part.startsWith('win')) {
+        addMod(HotKeyModifier.meta);
+      } else if (part.length == 1 || _functionKeys.contains(part)) {
+        letter = part.toUpperCase();
       }
     }
 
     return HotKey(
-      key: _letterKeys[letter] ?? PhysicalKeyboardKey.keyV,
+      key: _keyMap[letter] ?? PhysicalKeyboardKey.keyV,
       modifiers: modifiers,
       scope: HotKeyScope.system,
     );
