@@ -4,30 +4,30 @@ import 'package:clipvault/domain/entities/clip_item.dart';
 
 void main() {
   group('ContentTypeClassifier', () {
-    test('rozpoznaje link', () {
+    test('detects links', () {
       expect(
         ContentTypeClassifier.classify('https://example.com'),
         ClipContentType.link,
       );
     });
 
-    test('rozpoznaje e-mail', () {
+    test('detects emails', () {
       expect(
-        ContentTypeClassifier.classify('jan.kowalski@example.com'),
+        ContentTypeClassifier.classify('jane.doe@example.com'),
         ClipContentType.email,
       );
     });
 
-    test('rozpoznaje tekst wieloliniowy', () {
+    test('detects multiline text', () {
       expect(
-        ContentTypeClassifier.classify('linia 1\nlinia 2'),
+        ContentTypeClassifier.classify('line 1\nline 2'),
         ClipContentType.multilineText,
       );
     });
 
-    test('domyślnie zwykły tekst', () {
+    test('plain text by default', () {
       expect(
-        ContentTypeClassifier.classify('zwykły tekst'),
+        ContentTypeClassifier.classify('just some text'),
         ClipContentType.text,
       );
     });

@@ -1,3 +1,5 @@
+import '../domain/localization/app_strings.dart';
+
 enum ThemeModeSetting { light, dark, system }
 
 class AppSettings {
@@ -7,6 +9,7 @@ class AppSettings {
   final String globalShortcut;
   final ThemeModeSetting themeMode;
   final int accentSeed;
+  final AppLanguage language;
   final bool monitoringEnabled;
   final bool imagesEnabled;
   final bool saveSecrets;
@@ -24,6 +27,7 @@ class AppSettings {
     this.globalShortcut = 'Ctrl+Shift+V',
     this.themeMode = ThemeModeSetting.system,
     this.accentSeed = 0xFF5B67F1,
+    this.language = AppLanguage.english,
     this.monitoringEnabled = true,
     this.imagesEnabled = false,
     this.saveSecrets = false,
@@ -35,9 +39,9 @@ class AppSettings {
     this.showCopyToast = true,
   });
 
-  /// Zwraca NOWY obiekt z podmienionymi polami. Kluczowe: nigdy nie mutujemy
-  /// istniejącej instancji w miejscu, bo Riverpod porównuje referencje/wartości
-  /// i pominąłby powiadomienie słuchaczy przy mutacji tego samego obiektu.
+  /// Returns a NEW object with replaced fields. Key point: never mutate
+  /// the existing instance in place, because Riverpod compares
+  /// references/values and would skip notifying listeners on mutation.
   AppSettings copyWith({
     int? Function()? historyLimit,
     Duration? Function()? retentionPeriod,
@@ -45,6 +49,7 @@ class AppSettings {
     String? globalShortcut,
     ThemeModeSetting? themeMode,
     int? accentSeed,
+    AppLanguage? language,
     bool? monitoringEnabled,
     bool? imagesEnabled,
     bool? saveSecrets,
@@ -62,6 +67,7 @@ class AppSettings {
       globalShortcut: globalShortcut ?? this.globalShortcut,
       themeMode: themeMode ?? this.themeMode,
       accentSeed: accentSeed ?? this.accentSeed,
+      language: language ?? this.language,
       monitoringEnabled: monitoringEnabled ?? this.monitoringEnabled,
       imagesEnabled: imagesEnabled ?? this.imagesEnabled,
       saveSecrets: saveSecrets ?? this.saveSecrets,
@@ -81,6 +87,7 @@ class AppSettings {
         'globalShortcut': globalShortcut,
         'themeMode': themeMode.name,
         'accentSeed': accentSeed,
+        'language': language.name,
         'monitoringEnabled': monitoringEnabled,
         'imagesEnabled': imagesEnabled,
         'saveSecrets': saveSecrets,
@@ -104,6 +111,10 @@ class AppSettings {
           orElse: () => ThemeModeSetting.system,
         ),
         accentSeed: json['accentSeed'] as int? ?? 0xFF5B67F1,
+        language: AppLanguage.values.firstWhere(
+          (l) => l.name == json['language'],
+          orElse: () => AppLanguage.english,
+        ),
         monitoringEnabled: json['monitoringEnabled'] as bool? ?? true,
         imagesEnabled: json['imagesEnabled'] as bool? ?? false,
         saveSecrets: json['saveSecrets'] as bool? ?? false,

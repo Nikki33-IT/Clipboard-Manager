@@ -30,7 +30,7 @@ Future<void> main() async {
     await windowManager.focus();
   });
 
-  // Zamykanie okna minimalizuje do traya zamiast zamykać aplikację.
+  // Closing the window minimizes to tray instead of quitting the app.
   windowManager.setPreventClose(true);
 
   runApp(const ProviderScope(child: _RootApp()));
@@ -56,13 +56,12 @@ class _RootAppState extends ConsumerState<_RootApp> with WindowListener {
     final tray = ref.read(trayServiceProvider);
     final shortcutService = ref.read(globalShortcutServiceProvider);
 
-    // Poczekaj na wczytanie ustawien z dysku - inaczej rejestracja skrotu
-    // (i start zminimalizowany) wzielaby wartosci domyslne.
+    // Wait for settings to load from disk - otherwise shortcut
+    // registration (and minimized start) would use default values.
     await ref.read(settingsProvider.notifier).initialized;
     var settings = ref.read(settingsProvider);
 
-    // Samonaprawa: jesli w ustawieniach siedzi nieprawidlowy skrot
-    // (np. "Control Left+X" ze starego dialogu), wroc do domyslnego.
+    // Self-heal: if settings hold an invalid shortcut, fall back to default.
     if (!HotkeyShortcutService.isValidAccelerator(settings.globalShortcut)) {
       await AppLog.write(
           'app: invalid shortcut "${settings.globalShortcut}", fallback to default');
@@ -74,8 +73,8 @@ class _RootAppState extends ConsumerState<_RootApp> with WindowListener {
     history.startMonitoring();
     await AppLog.write('app: monitoring started');
 
-    // Tray potrafi nie wstac za pierwszym razem (np. Explorer jeszcze
-    // nie gotowy) - jedna ponowna proba po 3 s zamiast cichej kapitulacji.
+    // The tray may fail to come up on the first try (e.g. Explorer not
+    // ready yet) - one retry after 3 s instead of silently giving up.
     var trayOk = false;
     for (var attempt = 1; attempt <= 2 && !trayOk; attempt++) {
       try {
@@ -113,6 +112,7 @@ class _RootAppState extends ConsumerState<_RootApp> with WindowListener {
     }
 
     await AppLog.write('app: tray init done');
+    await tray.updateStrings(ref.read(stringsProvider));
 
     await windowManager.setAlwaysOnTop(settings.alwaysOnTop);
     if (settings.startMinimized) {
@@ -122,9 +122,8 @@ class _RootAppState extends ConsumerState<_RootApp> with WindowListener {
 
     try {
       await shortcutService.register(settings.globalShortcut, () async {
-        await AppLog.write('hotkey: fired, showing window');
-        await windowManager.show();
-        await windowManager.focus();
+        await AppLog.write('hotkey: fired, toggling window');
+        await HotkeyShortcutService.toggleMainWindow();
       });
       await AppLog.write(
           'app: shortcut registered (${settings.globalShortcut})');
@@ -133,8 +132,8 @@ class _RootAppState extends ConsumerState<_RootApp> with WindowListener {
     }
   }
 
-  /// Pelne zamkniecie: zdejmij ikone z traya, wylacz przechwytywanie
-  /// zamkniecia, zniszcz okno, a na koncu exit(0) jako gwarancja.
+  /// Full shutdown: remove the tray icon, disable close interception,
+  /// destroy the window, and finish with exit(0) as a guarantee.
   Future<void> _exitApp() async {
     try {
       await ref.read(trayServiceProvider).shutdown();
@@ -148,8 +147,8 @@ class _RootAppState extends ConsumerState<_RootApp> with WindowListener {
 
   @override
   void onWindowClose() async {
-    // X minimalizuje do traya tylko gdy wlaczona jest taka opcja -
-    // w przeciwnym razie zachowuj sie jak "Zamknij aplikacje" z traya.
+    // X minimizes to tray only when that option is on - otherwise behave
+    // like "Quit app" from the tray.
     if (ref.read(settingsProvider).closeToTray) {
       final isPreventClose = await windowManager.isPreventClose();
       if (isPreventClose) {

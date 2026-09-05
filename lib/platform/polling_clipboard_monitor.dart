@@ -5,17 +5,17 @@ import 'package:pasteboard/pasteboard.dart';
 import '../domain/repositories/interfaces.dart';
 import '../services/app_log.dart';
 
-/// Flutter nie ma natywnego "clipboard changed" eventu na desktopie, więc
-/// najbardziej niezawodne (i proste) podejście to lekki polling co ~500ms.
-/// Pilnuje tekstu, obrazkow (PNG, np. PrintScreen) oraz kopiowanych plikow.
+/// Flutter has no native "clipboard changed" event on desktop, so a light
+/// poll every ~500ms is the most reliable (and simple) approach.
+/// Watches text, images (PNG, e.g. PrintScreen) and copied files.
 ///
-/// W jednym ticku idzie maksymalnie jedno zdarzenie: zmieniony tekst ma
-/// priorytet, obrazki/pliki dochodza w kolejnym ticku (500 ms pozniej).
-/// Dzieki hashowaniu nie ma duplikatow ani petli przy wlasnych zapisach.
+/// At most one event per tick: changed text has priority, images/files
+/// arrive on the next tick (~500 ms later). Hashing prevents duplicates
+/// and loops on our own writes.
 class PollingClipboardMonitor implements ClipboardMonitor {
-  /// Gorny limit wejsciowy obrazka. BMP ze schowka bywa wielkie (ekran 4K
-  /// to ~38 MB) - i tak konwertujemy do malego PNG przy zapisie, wiec limit
-  /// jest wysoko, tylko przeciwko patologiom.
+  /// Upper input limit for images. Clipboard BMPs can be huge (a 4K
+  /// screen is ~38 MB) - and we convert to a small PNG on save anyway,
+  /// so the limit is high, only against pathologies.
   static const maxImageBytes = 150 * 1024 * 1024;
 
   final Duration pollInterval;
@@ -28,7 +28,7 @@ class PollingClipboardMonitor implements ClipboardMonitor {
   bool _suppressFiles = false;
   bool _imageReadFailed = false;
   bool _polling = false;
-  int _tick = 0; // licznik diagnostyczny (loguje pierwsze ticki)
+  int _tick = 0; // tick counter (drives image-poll throttling)
   bool _running = false;
 
   final _textController = StreamController<String>.broadcast();
@@ -91,8 +91,8 @@ class PollingClipboardMonitor implements ClipboardMonitor {
   }
 
   Future<void> _poll() async {
-    // Poprzedni tick jeszcze sie nie skonczyl (np. wisi na zablokowanym
-    // schowku) - pomijamy, zeby nie spietrzac zapytan.
+    // The previous tick has not finished yet (e.g. hanging on a locked
+    // clipboard) - skip it instead of piling up requests.
     if (_polling) return;
     _polling = true;
     try {
@@ -107,17 +107,18 @@ class PollingClipboardMonitor implements ClipboardMonitor {
         } else {
           _textController.add(text);
         }
-        return; // tekst ma priorytet - obrazki/pliki dojda w kolejnym ticku
+        return; // text has priority - images/files arrive on the next tick
       }
       _lastSeenText = (text == null || text.isEmpty) ? null : text;
 
-      // Odczyt obrazka jest drogi (natywna strona przeklada go przez plik
-      // tymczasowy), wiec sprawdzamy co 4. tick (~2 s). Zrzutom to wystarcza.
+      // Reading an image is expensive (the native side shuffles it
+      // through a temp file), so we check every 4th tick (~2 s).
+      // Screenshots do not need a 500 ms reaction.
       if (_tick % 4 == 0) await _pollImage();
       await _pollFiles();
     } catch (_) {
-      // Schowek bywa chwilowo niedostępny (np. inny proces go blokuje) -
-      // ignorujemy pojedynczy nieudany odczyt.
+      // The clipboard is occasionally unavailable (e.g. another process
+      // holds it) - ignore a single failed read.
     } finally {
       _polling = false;
     }
@@ -134,7 +135,7 @@ class PollingClipboardMonitor implements ClipboardMonitor {
         },
       );
     } catch (e) {
-      // Loguj tylko przejscie w stan bledu, zeby nie spamowac co 500 ms.
+      // Log only the transition into the error state, not every 500 ms.
       if (!_imageReadFailed) {
         _imageReadFailed = true;
         await AppLog.write('monitor: Pasteboard.image FAILED: $e');

@@ -9,6 +9,7 @@ import 'package:uuid/uuid.dart';
 import '../data/repositories/sqlite_history_repository.dart';
 import '../domain/content_type_classifier.dart';
 import '../domain/entities/clip_item.dart';
+import '../domain/localization/app_strings.dart';
 import '../domain/repositories/interfaces.dart';
 import '../platform/desktop_platform_services.dart';
 import '../platform/polling_clipboard_monitor.dart';
@@ -54,12 +55,18 @@ final settingsProvider =
   return SettingsController(ref.watch(settingsRepositoryProvider));
 });
 
-class SettingsController extends StateNotifier<AppSettings> {
-  final SettingsRepository _repo;
+/// Current UI strings. The whole UI (including the tray menu) rebuilds
+/// when the language changes.
+final stringsProvider = Provider<AppStrings>((ref) {
+  final language = ref.watch(settingsProvider.select((s) => s.language));
+  return language == AppLanguage.polish ? PlStrings() : EnStrings();
+});
 
-  /// Konczy sie, gdy ustawienia zostana wczytane z dysku. Trzeba na to
-  /// poczekac przed pierwszym odczytem (np. rejestracja skrotu w main),
-  /// inaczej dostaje sie wartosci domyslne zamiast zapisanych przez usera.
+class SettingsController extends StateNotifier<AppSettings> {  final SettingsRepository _repo;
+
+  /// Completes once settings are loaded from disk. Must be awaited before
+  /// the first read (e.g. shortcut registration in main), otherwise the
+  /// caller gets defaults instead of the user's saved values.
   late final Future<void> initialized;
 
   SettingsController(this._repo) : super(AppSettings.defaults()) {
@@ -70,8 +77,8 @@ class SettingsController extends StateNotifier<AppSettings> {
     state = await _repo.load();
   }
 
-  /// Przyjmuje gotowy nowy obiekt AppSettings (np. z .copyWith(...)) i
-  /// zapisuje go zarówno w stanie, jak i na dysku.
+  /// Takes a finished new AppSettings object (e.g. from .copyWith(...))
+  /// and persists it both in state and on disk.
   Future<void> apply(AppSettings newSettings) async {
     state = newSettings;
     await _repo.save(state);
@@ -83,8 +90,8 @@ class SettingsController extends StateNotifier<AppSettings> {
   }
 }
 
-/// Kontroler historii - serce logiki aplikacji: nasłuchuje schowka,
-/// deduplikuje, wykrywa sekrety, egzekwuje limity.
+/// History controller - the heart of the app logic: listens to the
+/// clipboard, deduplicates, detects secrets, enforces limits.
 final historyControllerProvider =
     StateNotifierProvider<HistoryController, List<ClipItem>>((ref) {
   return HistoryController(
@@ -132,15 +139,15 @@ class HistoryController extends StateNotifier<List<ClipItem>> {
 
     final isSecret = secretDetector.looksLikeSecret(text);
     if (isSecret && !settings.saveSecrets) {
-      return; // Nie zapisujemy potencjalnych sekretów, jeśli wyłączone.
+      return; // Skip potential secrets when saving them is disabled.
     }
 
-    // Ogranicz rozmiar wpisu (np. 200k znaków), żeby nie rozdąć bazy.
+    // Cap entry size (e.g. 200k chars) so the database stays lean.
     final limitedText = text.length > 200000 ? text.substring(0, 200000) : text;
 
     final duplicate = await historyRepository.findDuplicate(limitedText);
     if (duplicate != null) {
-      // Przenieś na początek, zaktualizuj metadane zamiast duplikować.
+      // Move to the top, update metadata instead of duplicating.
       final updated = duplicate.copyWith(lastUsedAt: DateTime.now());
       await historyRepository.update(updated);
     } else {
@@ -177,7 +184,7 @@ class HistoryController extends StateNotifier<List<ClipItem>> {
 
     final duplicate = await historyRepository.findDuplicateImage(bytes);
     if (duplicate != null) {
-      // Przenieś na początek, zaktualizuj metadane zamiast duplikować.
+      // Move to the top, update metadata instead of duplicating.
       final updated = duplicate.copyWith(lastUsedAt: DateTime.now());
       await historyRepository.update(updated);
     } else {
@@ -225,8 +232,8 @@ class HistoryController extends StateNotifier<List<ClipItem>> {
     await _refresh();
   }
 
-  /// Kopiuje element z powrotem do schowka - sygnalizuje monitorowi,
-  /// żeby pominął tę zmianę i nie stworzył pętli / duplikatu.
+  /// Copies an item back to the clipboard - tells the monitor to skip
+  /// that change so it does not create a loop / duplicate.
   Future<void> copyToClipboard(ClipItem item) async {
     if (item.type == ClipContentType.image) {
       await _copyImageToClipboard(item);
@@ -259,7 +266,7 @@ class HistoryController extends StateNotifier<List<ClipItem>> {
       await Pasteboard.writeImage(bytes);
       await _afterCopy(item);
     } catch (_) {
-      // Np. usuniety recznie plik - po prostu nic nie robimy.
+      // E.g. a manually deleted file - just do nothing.
     }
   }
 

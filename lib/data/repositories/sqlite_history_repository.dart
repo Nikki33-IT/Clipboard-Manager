@@ -9,8 +9,8 @@ import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 import '../../domain/entities/clip_item.dart';
 import '../../domain/repositories/interfaces.dart';
 
-/// Implementacja [HistoryRepository] na bazie SQLite (przez sqflite_ffi,
-/// wymagane na desktopie zamiast domyślnego sqflite mobilnego).
+/// [HistoryRepository] implementation on SQLite (via sqflite_ffi,
+/// required on desktop instead of the mobile sqflite default).
 class SqliteHistoryRepository implements HistoryRepository {
   Database? _db;
 
@@ -50,7 +50,7 @@ class SqliteHistoryRepository implements HistoryRepository {
   @override
   Future<void> add(ClipItem item) async {
     final db = await _database;
-    // Parametryzowane zapytanie - nigdy interpolacja stringów w SQL.
+    // Parameterized query - never string interpolation in SQL.
     await db.insert('clip_items', item.toMap());
   }
 
@@ -179,7 +179,7 @@ class SqliteHistoryRepository implements HistoryRepository {
     }
   }
 
-  /// Katalog na pliki PNG obrazkow ze schowka.
+  /// Directory for clipboard image PNG files.
   Future<Directory> get _imagesDir async {
     final dir = await getApplicationSupportDirectory();
     final images = Directory(p.join(dir.path, 'images'));
@@ -190,9 +190,9 @@ class SqliteHistoryRepository implements HistoryRepository {
   @override
   Future<String> saveImage(String id, Uint8List bytes) async {
     final images = await _imagesDir;
-    // Schowek Windows oddaje BMP (wielkie, np. 38 MB za ekran 4K).
-    // Konwertujemy do PNG i skalujemy do max 1920 px szerokosci, zeby
-    // historia nie zjada dysku. Niezrozumiale bajty zapisujemy jak leca.
+    // Windows clipboard hands out BMP (huge, e.g. 38 MB for a 4K screen).
+    // We convert to PNG and scale down to max 1920 px wide so history
+    // does not eat the disk. Undecodable bytes are stored as-is.
     Uint8List out = bytes;
     try {
       final decoded = img.decodeImage(bytes);
@@ -225,7 +225,7 @@ class SqliteHistoryRepository implements HistoryRepository {
           return ClipItem.fromMap(row);
         }
       } catch (_) {
-        continue; // uszkodzony plik nie blokuje zapisu nowego obrazka
+        continue; // a corrupted file must not block saving a new image
       }
     }
     return null;
@@ -239,8 +239,8 @@ class SqliteHistoryRepository implements HistoryRepository {
     return true;
   }
 
-  /// Usuwa plik PNG, jesli wiersz reprezentuje obrazek z naszego katalogu.
-  /// Plikow usera (wpisy typu file) NIGDY nie ruszamy.
+  /// Deletes the PNG file when the row represents one of our images.
+  /// User files (file-type entries) are NEVER touched.
   void _deleteImageFile(Map<String, Object?> row) {
     if (row['type'] != ClipContentType.image.name) return;
     try {

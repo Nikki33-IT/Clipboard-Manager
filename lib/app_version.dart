@@ -1,7 +1,7 @@
-/// Aktualna wersja aplikacji - musi być zgodna z `version:` w pubspec.yaml.
-/// Podbijaj ręcznie przy każdym wydaniu (np. przed utworzeniem GitHub Release).
-const String kAppVersion = '0.2.0';
+/// Current app version - must match `version:` in pubspec.yaml.
+/// Bump manually with every release (e.g. before creating a GitHub Release).
+const String kAppVersion = '0.3.0';
 
-/// Adres repozytorium GitHub w formacie "wlasciciel/nazwa-repo".
-/// Wymagany przez UpdateChecker do budowania URL API GitHub.
+/// GitHub repository address in "owner/repo-name" format.
+/// Required by UpdateChecker to build the GitHub API URL.
 const String kGithubRepo = 'allynIT/Clipboard-Manager';

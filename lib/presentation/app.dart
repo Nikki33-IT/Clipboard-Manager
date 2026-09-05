@@ -1,13 +1,16 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:window_manager/window_manager.dart';
 
 import '../application/providers.dart';
+import '../domain/localization/app_strings.dart';
+import '../settings/app_settings.dart';
 import 'screens/history_screen.dart';
 import 'screens/settings_screen.dart';
 import 'theme/app_theme.dart';
-import '../settings/app_settings.dart';
 
 class ClipVaultApp extends ConsumerStatefulWidget {
   const ClipVaultApp({super.key});
@@ -17,31 +20,17 @@ class ClipVaultApp extends ConsumerStatefulWidget {
 }
 
 class _ClipVaultAppState extends ConsumerState<ClipVaultApp> {
-  final _searchFocusNode = FocusNode();
-  bool _showSettings = false;
-
-  @override
-  void dispose() {
-    _searchFocusNode.dispose();
-    super.dispose();
-  }
-
-  /// Wraca na ekran historii i ustawia kursor w wyszukiwarce.
-  void _focusSearch() {
-    setState(() => _showSettings = false);
-    // Poczekaj na przebudowanie na HistoryScreen, potem daj focus.
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) _searchFocusNode.requestFocus();
-    });
-  }
-
   @override
   Widget build(BuildContext context) {
     final settings = ref.watch(settingsProvider);
 
-    // Zmiana "zawsze na wierzchu" na zywo, bez restartu aplikacji.
+    // "Always on top" applies live, without restarting the app.
     ref.listen<AppSettings>(settingsProvider, (_, next) {
       windowManager.setAlwaysOnTop(next.alwaysOnTop);
+    });
+    // Tray menu follows the UI language.
+    ref.listen<AppStrings>(stringsProvider, (_, next) {
+      unawaited(ref.read(trayServiceProvider).updateStrings(next));
     });
 
     final themeMode = switch (settings.themeMode) {
@@ -57,29 +46,78 @@ class _ClipVaultAppState extends ConsumerState<ClipVaultApp> {
       theme: AppTheme.light(seed: seed),
       darkTheme: AppTheme.dark(seed: seed),
       themeMode: themeMode,
-      home: Shortcuts(
-        shortcuts: {
-          LogicalKeySet(LogicalKeyboardKey.escape): const _CloseIntent(),
-          const SingleActivator(LogicalKeyboardKey.keyF, control: true):
-              const _FocusSearchIntent(),
+      home: const _Shell(),
+    );
+  }
+}
+
+/// App shell: global shortcuts, gradient backdrop, top bar and the
+/// animated history/settings switch.
+class _Shell extends ConsumerStatefulWidget {
+  const _Shell();
+
+  @override
+  ConsumerState<_Shell> createState() => _ShellState();
+}
+
+class _ShellState extends ConsumerState<_Shell> {
+  final _searchFocusNode = FocusNode();
+  bool _showSettings = false;
+
+  @override
+  void dispose() {
+    _searchFocusNode.dispose();
+    super.dispose();
+  }
+
+  /// Back to the history screen with the cursor in search.
+  void _focusSearch() {
+    setState(() => _showSettings = false);
+    // Wait for the rebuild onto HistoryScreen, then grab focus.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _searchFocusNode.requestFocus();
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+
+    return Shortcuts(
+      shortcuts: {
+        LogicalKeySet(LogicalKeyboardKey.escape): const _CloseIntent(),
+        const SingleActivator(LogicalKeyboardKey.keyF, control: true):
+            const _FocusSearchIntent(),
+      },
+      child: Actions(
+        actions: {
+          _CloseIntent: CallbackAction<_CloseIntent>(
+            onInvoke: (_) {
+              setState(() => _showSettings = false);
+              return null;
+            },
+          ),
+          _FocusSearchIntent: CallbackAction<_FocusSearchIntent>(
+            onInvoke: (_) {
+              _focusSearch();
+              return null;
+            },
+          ),
         },
-        child: Actions(
-          actions: {
-            _CloseIntent: CallbackAction<_CloseIntent>(
-              onInvoke: (_) {
-                setState(() => _showSettings = false);
-                return null;
-              },
+        child: Scaffold(
+          body: Container(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [
+                  scheme.primaryContainer.withValues(alpha: 0.30),
+                  scheme.surface,
+                ],
+                stops: const [0.0, 0.55],
+              ),
             ),
-            _FocusSearchIntent: CallbackAction<_FocusSearchIntent>(
-              onInvoke: (_) {
-                _focusSearch();
-                return null;
-              },
-            ),
-          },
-          child: Scaffold(
-            body: SafeArea(
+            child: SafeArea(
               child: Column(
                 children: [
                   _TopBar(
@@ -88,9 +126,27 @@ class _ClipVaultAppState extends ConsumerState<ClipVaultApp> {
                         setState(() => _showSettings = !_showSettings),
                   ),
                   Expanded(
-                    child: _showSettings
-                        ? const SettingsScreen()
-                        : HistoryScreen(searchFocusNode: _searchFocusNode),
+                    child: AnimatedSwitcher(
+                      duration: const Duration(milliseconds: 260),
+                      switchInCurve: Curves.easeOutCubic,
+                      switchOutCurve: Curves.easeInCubic,
+                      transitionBuilder: (child, animation) => FadeTransition(
+                        opacity: animation,
+                        child: SlideTransition(
+                          position: Tween(
+                            begin: const Offset(0.05, 0),
+                            end: Offset.zero,
+                          ).animate(animation),
+                          child: child,
+                        ),
+                      ),
+                      child: _showSettings
+                          ? const SettingsScreen(key: ValueKey('settings'))
+                          : HistoryScreen(
+                              key: const ValueKey('history'),
+                              searchFocusNode: _searchFocusNode,
+                            ),
+                    ),
                   ),
                 ],
               ),
@@ -116,21 +172,13 @@ class _TopBar extends ConsumerWidget {
 
   const _TopBar({required this.showingSettings, required this.onToggleSettings});
 
-  static String _itemsLabel(int count) {
-    if (count == 1) return '1 wpis';
-    final lastTwo = count % 100;
-    final last = count % 10;
-    if (lastTwo >= 12 && lastTwo <= 14) return '$count wpisów';
-    if (last >= 2 && last <= 4) return '$count wpisy';
-    return '$count wpisów';
-  }
-
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final scheme = Theme.of(context).colorScheme;
     final textTheme = Theme.of(context).textTheme;
-    // Ogladamy tylko dlugosc listy, zeby pasek nie budowal sie
-    // przy kazdej zmianie tresci wpisow.
+    final strings = ref.watch(stringsProvider);
+    // Only watch the list length, so the bar does not rebuild on every
+    // change of entry contents.
     final count =
         ref.watch(historyControllerProvider.select((items) => items.length));
 
@@ -158,13 +206,15 @@ class _TopBar extends ConsumerWidget {
               mainAxisSize: MainAxisSize.min,
               children: [
                 Text(
-                  'ClipVault',
+                  strings.appName,
                   style: textTheme.titleSmall?.copyWith(
                     fontWeight: FontWeight.w700,
                   ),
                 ),
                 Text(
-                  count == 0 ? 'Historia schowka' : _itemsLabel(count),
+                  count == 0
+                      ? strings.historyEmptyLabel
+                      : strings.itemsLabel(count),
                   style: textTheme.labelSmall?.copyWith(
                     color: scheme.onSurfaceVariant,
                   ),
@@ -173,10 +223,21 @@ class _TopBar extends ConsumerWidget {
             ),
           ),
           IconButton(
-            tooltip:
-                showingSettings ? 'Zamknij ustawienia' : 'Ustawienia (Esc zamyka)',
-            icon: Icon(
-              showingSettings ? Icons.close_rounded : Icons.settings_outlined,
+            tooltip: showingSettings
+                ? strings.closeSettingsTooltip
+                : strings.settingsTooltip,
+            icon: AnimatedSwitcher(
+              duration: const Duration(milliseconds: 220),
+              transitionBuilder: (child, animation) => RotationTransition(
+                turns: animation,
+                child: ScaleTransition(scale: animation, child: child),
+              ),
+              child: Icon(
+                showingSettings
+                    ? Icons.close_rounded
+                    : Icons.settings_outlined,
+                key: ValueKey(showingSettings),
+              ),
             ),
             style: showingSettings
                 ? IconButton.styleFrom(

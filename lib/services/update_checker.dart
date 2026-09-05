@@ -3,6 +3,18 @@ import 'dart:io';
 
 import '../app_version.dart';
 
+/// Thrown when the GitHub API does not return releases.
+/// Carries the HTTP status code so the UI can render a localized message.
+class UpdateCheckException implements Exception {
+  final int statusCode;
+  const UpdateCheckException(this.statusCode);
+
+  @override
+  String toString() =>
+      'Failed to fetch releases (code $statusCode). '
+      'Check that the repository in app_version.dart is correct and public.';
+}
+
 class UpdateInfo {
   final String latestVersion;
   final String releaseUrl;
@@ -17,10 +29,9 @@ class UpdateInfo {
   });
 }
 
-/// Sprawdza najnowsze wydanie na GitHub. Wywoływane WYŁĄCZNIE na wyraźne
-/// żądanie użytkownika (przycisk "Sprawdź aktualizacje") - aplikacja nigdy
-/// nie robi tego automatycznie ani w tle, zgodnie z zasadą braku ukrytej
-/// komunikacji z internetem.
+/// Checks the latest GitHub release. Called ONLY on explicit user request
+/// (the "Check for updates" button) - the app never does this automatically
+/// or in the background, following the no-hidden-network rule.
 class UpdateChecker {
   Future<UpdateInfo> checkForUpdate() async {
     final uri = Uri.parse(
@@ -38,10 +49,7 @@ class UpdateChecker {
           );
 
       if (response.statusCode != 200) {
-        throw Exception(
-          'Nie udało się pobrać informacji o wydaniach (kod ${response.statusCode}). '
-          'Sprawdź czy repozytorium w app_version.dart jest poprawne i publiczne.',
-        );
+        throw UpdateCheckException(response.statusCode);
       }
 
       final body = await response.transform(utf8.decoder).join();

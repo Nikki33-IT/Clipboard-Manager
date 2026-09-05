@@ -2,21 +2,23 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../application/providers.dart';
 import '../../domain/entities/clip_item.dart';
+import '../../domain/localization/app_strings.dart';
 
-/// Karta pojedynczego wpisu historii.
+/// A single history entry card.
 ///
-/// Celowo lekka ([StatelessWidget], zero animacji) — lista ma byc plynna
-/// nawet przy kilkuset elementach. Ciezsze efekty (Tween/AnimatedContainer
-/// na kazdym wierszu) zamulaly przewijanie, wiec ich tu nie ma.
-class ClipTile extends StatelessWidget {
+/// Deliberately light - the parent list handles entrance animations, so
+/// tiles themselves carry no animation controllers and scroll stays smooth.
+class ClipTile extends ConsumerWidget {
   final ClipItem item;
   final VoidCallback onCopy;
   final VoidCallback onPin;
   final VoidCallback onDelete;
 
-  /// Aktualna fraza wyszukiwania - jej wystapienia sa podswietlane w podgladzie.
+  /// Current search phrase - its occurrences are highlighted in the preview.
   final String highlight;
 
   const ClipTile({
@@ -28,32 +30,73 @@ class ClipTile extends StatelessWidget {
     this.highlight = '',
   });
 
-  /// Ikona + etykieta typu tresci.
-  (IconData, String) get _typeMeta {
+  /// Icon + label + badge colors per content type.
+  ({IconData icon, String label, Color bg, Color fg}) _typeMeta(
+      ColorScheme scheme, AppStrings strings) {
     switch (item.type) {
       case ClipContentType.link:
-        return (Icons.link, 'Link');
+        return (
+          icon: Icons.link,
+          label: strings.typeLink,
+          bg: scheme.tertiaryContainer,
+          fg: scheme.onTertiaryContainer,
+        );
       case ClipContentType.email:
-        return (Icons.alternate_email, 'E-mail');
+        return (
+          icon: Icons.alternate_email,
+          label: strings.typeEmail,
+          bg: scheme.secondaryContainer,
+          fg: scheme.onSecondaryContainer,
+        );
       case ClipContentType.multilineText:
-        return (Icons.notes, 'Notatka');
+        return (
+          icon: Icons.notes,
+          label: strings.typeNote,
+          bg: scheme.secondaryContainer,
+          fg: scheme.onSecondaryContainer,
+        );
       case ClipContentType.image:
-        return (Icons.image_outlined, 'Obraz');
+        return (
+          icon: Icons.image_outlined,
+          label: strings.typeImage,
+          bg: scheme.tertiaryContainer,
+          fg: scheme.onTertiaryContainer,
+        );
       case ClipContentType.html:
-        return (Icons.code, 'HTML');
+        return (
+          icon: Icons.code,
+          label: strings.typeHtml,
+          bg: scheme.secondaryContainer,
+          fg: scheme.onSecondaryContainer,
+        );
       case ClipContentType.rtf:
-        return (Icons.description_outlined, 'RTF');
-      case ClipContentType.text:
-        return (Icons.short_text, 'Tekst');
+        return (
+          icon: Icons.description_outlined,
+          label: strings.typeRtf,
+          bg: scheme.secondaryContainer,
+          fg: scheme.onSecondaryContainer,
+        );
       case ClipContentType.file:
-        return (Icons.folder_outlined, 'Pliki');
+        return (
+          icon: Icons.folder_outlined,
+          label: strings.typeFiles(_fileNames.length),
+          bg: scheme.secondaryContainer,
+          fg: scheme.onSecondaryContainer,
+        );
+      case ClipContentType.text:
+        return (
+          icon: Icons.short_text,
+          label: strings.typeText,
+          bg: scheme.primaryContainer,
+          fg: scheme.onPrimaryContainer,
+        );
     }
   }
 
   static String _previewText(String content) =>
       content.length > 160 ? '${content.substring(0, 160)}…' : content;
 
-  /// Nazwy plikow dla wpisu typu file (content = JSON z lista sciezek).
+  /// File names for file-type entries (content = JSON with a path list).
   List<String> get _fileNames {
     if (item.type != ClipContentType.file) return const [];
     try {
@@ -70,14 +113,13 @@ class ClipTile extends StatelessWidget {
     return joined.length > 160 ? '${joined.substring(0, 160)}…' : joined;
   }
 
-  /// Tekst zrodlowy podgladu: obrazki nie maja tekstu (jest miniaturka).
+  /// Preview source text: images have no text (the card shows a thumbnail).
   String _previewSourceText() {
     if (item.type == ClipContentType.image) return '';
     return _previewFallback();
   }
 
-  /// Podglad tresci z podswietlona fraza wyszukiwania (case-insensitive).
-  /// Dla obrazkow nie ma tekstu - zwraca pusta tresc (w karcie widac miniaturke).
+  /// Preview text with the search phrase highlighted (case-insensitive).
   InlineSpan _previewSpan(ColorScheme scheme) {
     final text =
         item.isSecret ? '••••••••••••' : _previewSourceText();
@@ -110,32 +152,34 @@ class ClipTile extends StatelessWidget {
     return TextSpan(children: spans);
   }
 
-  /// Krotki czas wzgledny po polsku ("5 min temu", "wczoraj").
-  static String _relativeTime(DateTime dt) {
+  /// Short relative time ("5 min ago", "yesterday").
+  static String _relativeTime(DateTime dt, AppStrings strings) {
     final diff = DateTime.now().difference(dt);
-    if (diff.inMinutes < 1) return 'przed chwilą';
-    if (diff.inMinutes < 60) return '${diff.inMinutes} min temu';
-    if (diff.inHours < 24) return '${diff.inHours} godz. temu';
-    if (diff.inDays == 1) return 'wczoraj';
-    if (diff.inDays < 7) return '${diff.inDays} dni temu';
-    final d = dt.day.toString().padLeft(2, '0');
-    final m = dt.month.toString().padLeft(2, '0');
-    return '$d.$m.${dt.year}';
+    if (diff.inMinutes < 1) return strings.justNow;
+    if (diff.inMinutes < 60) return strings.minutesAgo(diff.inMinutes);
+    if (diff.inHours < 24) return strings.hoursAgo(diff.inHours);
+    if (diff.inDays == 1) return strings.yesterday;
+    if (diff.inDays < 7) {
+      final now = DateTime.now();
+      final today = DateTime(now.year, now.month, now.day);
+      final d = today.difference(DateTime(dt.year, dt.month, dt.day)).inDays;
+      if (d == 1) return strings.yesterday;
+      return strings.dateLabel(dt.year, dt.month, dt.day);
+    }
+    return strings.dateLabel(dt.year, dt.month, dt.day);
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final scheme = Theme.of(context).colorScheme;
     final textTheme = Theme.of(context).textTheme;
-    final (typeIcon, rawTypeLabel) = _typeMeta;
-    final typeLabel = item.type == ClipContentType.file
-        ? '$rawTypeLabel (${_fileNames.length})'
-        : rawTypeLabel;
+    final strings = ref.watch(stringsProvider);
+    final meta = _typeMeta(scheme, strings);
 
     final preview = _previewSpan(scheme);
-    final meta = item.isSecret
-        ? 'Ukryty sekret'
-        : '${_relativeTime(item.copiedAt)}  •  $typeLabel'
+    final metaLine = item.isSecret
+        ? strings.hiddenSecret
+        : '${_relativeTime(item.copiedAt, strings)}  •  ${meta.label}'
             '${item.useCount > 0 ? '  •  ${item.useCount}×' : ''}';
 
     return Container(
@@ -162,8 +206,10 @@ class ClipTile extends StatelessWidget {
                   _ImageThumb(path: item.content)
                 else
                   _TypeBadge(
-                    icon: item.isSecret ? Icons.lock_outline : typeIcon,
+                    icon: item.isSecret ? Icons.lock_outline : meta.icon,
                     isSecret: item.isSecret,
+                    bg: meta.bg,
+                    fg: meta.fg,
                   ),
                 const SizedBox(width: 12),
                 Expanded(
@@ -190,7 +236,7 @@ class ClipTile extends StatelessWidget {
                           ],
                           Expanded(
                             child: Text(
-                              meta,
+                              metaLine,
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                               style: textTheme.labelSmall?.copyWith(
@@ -205,7 +251,8 @@ class ClipTile extends StatelessWidget {
                 ),
                 const SizedBox(width: 4),
                 _TileAction(
-                  tooltip: item.isPinned ? 'Odepnij' : 'Przypnij',
+                  tooltip:
+                      item.isPinned ? strings.unpinTooltip : strings.pinTooltip,
                   icon: item.isPinned
                       ? Icons.push_pin
                       : Icons.push_pin_outlined,
@@ -213,7 +260,7 @@ class ClipTile extends StatelessWidget {
                   onPressed: onPin,
                 ),
                 _TileAction(
-                  tooltip: 'Usuń',
+                  tooltip: strings.deleteTooltip,
                   icon: Icons.delete_outline,
                   onPressed: onDelete,
                 ),
@@ -226,8 +273,8 @@ class ClipTile extends StatelessWidget {
   }
 }
 
-/// Miniaturka obrazka ze schowka. Przy braku pliku (usuniety recznie)
-/// pokazuje zastepcza ikone zamiast wywalac karty.
+/// Thumbnail of a clipboard image. A missing file (deleted by hand) falls
+/// back to a placeholder icon instead of breaking the card.
 class _ImageThumb extends StatelessWidget {
   final String path;
 
@@ -242,21 +289,33 @@ class _ImageThumb extends StatelessWidget {
         width: 48,
         height: 48,
         fit: BoxFit.cover,
-        errorBuilder: (_, __, ___) => const _TypeBadge(
-          icon: Icons.broken_image_outlined,
-          isSecret: false,
-        ),
+        errorBuilder: (_, __, ___) {
+          final scheme = Theme.of(context).colorScheme;
+          return _TypeBadge(
+            icon: Icons.broken_image_outlined,
+            isSecret: false,
+            bg: scheme.errorContainer,
+            fg: scheme.onErrorContainer,
+          );
+        },
       ),
     );
   }
 }
 
-/// Kolorowy znaczek typu tresci po lewej stronie karty.
+/// Colored content-type badge on the left side of the card.
 class _TypeBadge extends StatelessWidget {
   final IconData icon;
   final bool isSecret;
+  final Color? bg;
+  final Color? fg;
 
-  const _TypeBadge({required this.icon, required this.isSecret});
+  const _TypeBadge({
+    required this.icon,
+    required this.isSecret,
+    this.bg,
+    this.fg,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -265,7 +324,9 @@ class _TypeBadge extends StatelessWidget {
       width: 36,
       height: 36,
       decoration: BoxDecoration(
-        color: isSecret ? scheme.errorContainer : scheme.primaryContainer,
+        color: isSecret
+            ? scheme.errorContainer
+            : (bg ?? scheme.primaryContainer),
         borderRadius: BorderRadius.circular(12),
       ),
       child: Icon(
@@ -273,14 +334,14 @@ class _TypeBadge extends StatelessWidget {
         size: 18,
         color: isSecret
             ? scheme.onErrorContainer
-            : scheme.onPrimaryContainer,
+            : (fg ?? scheme.onPrimaryContainer),
       ),
     );
   }
 }
 
-/// Kompaktowy przycisk akcji (pinezka / kosz) — mniejszy cel dotyku
-/// i slabszy kolor, zeby nie konkurowal z trescia wpisu.
+/// Compact action button (pin / trash) - smaller hit target and dimmer
+/// color so it does not compete with the entry content.
 class _TileAction extends StatelessWidget {
   final String tooltip;
   final IconData icon;

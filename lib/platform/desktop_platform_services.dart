@@ -4,8 +4,10 @@ import 'package:flutter/services.dart';
 import 'package:hotkey_manager/hotkey_manager.dart';
 import 'package:launch_at_startup/launch_at_startup.dart';
 import 'package:tray_manager/tray_manager.dart';
+import 'package:window_manager/window_manager.dart';
 
 import '../domain/repositories/interfaces.dart';
+import '../domain/localization/app_strings.dart';
 import '../services/app_log.dart';
 
 class TrayManagerService implements TrayService {
@@ -14,6 +16,8 @@ class TrayManagerService implements TrayService {
   void Function()? _onClearHistory;
   void Function()? _onOpenSettings;
   void Function()? _onExit;
+  AppStrings _strings = EnStrings();
+  bool _isRunning = true;
 
   @override
   Future<void> init({
@@ -34,7 +38,7 @@ class TrayManagerService implements TrayService {
       await trayManager.setIcon('assets/tray_icon.ico');
       await AppLog.write('tray: icon OK');
     } catch (e) {
-      // Bez ikony menu nadal ma sens, wiec lecimy dalej.
+      // The menu still makes sense without an icon, so carry on.
       await AppLog.write('tray: setIcon FAILED: $e');
     }
     try {
@@ -56,7 +60,14 @@ class TrayManagerService implements TrayService {
 
   @override
   Future<void> updateMonitoringLabel(bool isRunning) async {
+    _isRunning = isRunning;
     await _rebuildMenu(isRunning: isRunning);
+  }
+
+  @override
+  Future<void> updateStrings(AppStrings strings) async {
+    _strings = strings;
+    await _rebuildMenu(isRunning: _isRunning);
   }
 
   @override
@@ -66,13 +77,15 @@ class TrayManagerService implements TrayService {
 
   Future<void> _rebuildMenu({required bool isRunning}) async {
     final menu = Menu(items: [
-      MenuItem(key: 'open_history', label: 'Otwórz historię'),
-      MenuItem(key: 'toggle_monitoring', label: isRunning ? 'Wstrzymaj monitorowanie' : 'Wznów monitorowanie'),
-      MenuItem(key: 'clear_history', label: 'Wyczyść historię'),
+      MenuItem(key: 'open_history', label: _strings.trayOpenHistory),
+      MenuItem(
+          key: 'toggle_monitoring',
+          label: _strings.trayToggleMonitoring(isRunning)),
+      MenuItem(key: 'clear_history', label: _strings.trayClearHistory),
       MenuItem.separator(),
-      MenuItem(key: 'settings', label: 'Ustawienia'),
+      MenuItem(key: 'settings', label: _strings.traySettings),
       MenuItem.separator(),
-      MenuItem(key: 'exit', label: 'Zamknij aplikację'),
+      MenuItem(key: 'exit', label: _strings.trayQuit),
     ]);
     await trayManager.setContextMenu(menu);
   }
@@ -117,21 +130,21 @@ class _TrayListener with TrayListener {
 
   @override
   void onTrayIconMouseDown() {
-    // LEWY przycisk: menu (opcje, zamykanie).
-    AppLog.write('tray: left-click icon -> popup menu');
-    _popupMenu();
+    // LEFT button: open the app window.
+    AppLog.write('tray: left-click icon -> open window');
+    onOpenHistory();
   }
 
   @override
   void onTrayIconRightMouseDown() {
-    // PRAWY przycisk: otwieranie okna apki. Natywne menu NIE wyskakuje
-    // samo z siebie - pokazuje je tylko jawne popUpContextMenu() wyzej.
-    AppLog.write('tray: right-click icon -> open window');
-    onOpenHistory();
+    // RIGHT button: options menu (close etc.). The native side never pops
+    // it by itself - only an explicit popUpContextMenu() shows it.
+    AppLog.write('tray: right-click icon -> popup menu');
+    _popupMenu();
   }
 
-  /// Pokazanie menu z obsluga bledow - wywolanie jest async, a listener
-  /// jest synchroniczny, wiec blad trzeba zlapac tu, nie u wolajacego.
+  /// Showing the menu with error handling - the call is async while the
+  /// listener is synchronous, so errors must be caught here, not by callers.
   Future<void> _popupMenu() async {
     try {
       await trayManager.popUpContextMenu();
@@ -164,9 +177,21 @@ class HotkeyShortcutService implements GlobalShortcutService {
   static const defaultAccelerator = 'Ctrl+Shift+V';
   HotKey? _registered;
 
-  /// Sprawdza czy tekst skrotu ma sens: min. 1 modyfikator + dokladnie
-  /// 1 klawisz. Chroni przed smieciami typu "Control Left+X" (takie cos
-  /// kiedys zapisywal dialog) i przed samotna litera jako skrotem globalnym.
+  /// Shows the main window when hidden, hides it when visible.
+  /// Shared by the startup registration and the settings dialog so both
+  /// behave identically.
+  static Future<void> toggleMainWindow() async {
+    if (await windowManager.isVisible()) {
+      await windowManager.hide();
+    } else {
+      await windowManager.show();
+      await windowManager.focus();
+    }
+  }
+
+  /// Checks whether a shortcut text makes sense: at least 1 modifier +
+  /// exactly 1 key. Guards against garbage like "Control Left+X" (once
+  /// produced by the dialog) and against a lone letter as global shortcut.
   static bool isValidAccelerator(String accelerator) {
     final parts = accelerator
         .split('+')
@@ -226,9 +251,9 @@ class HotkeyShortcutService implements GlobalShortcutService {
       keyDownHandler: (_) => callback(),
     );
     _registered = hotKey;
-    // UWAGA: natywny RegisterHotKey nie zglasza bledu, gdy system odrzuci
-    // skrot (zajety przez inna apke) - wtedy po prostu nigdy nie przyjdzie
-    // zdarzenie. Stad log "fired" w callbacku jako jedyny dowod dzialania.
+    // NOTE: native RegisterHotKey reports no error when the system rejects
+    // a shortcut (taken by another app) - then the event simply never
+    // arrives. Hence the "fired" log in the callback as the only proof.
     await AppLog.write('hotkey: registered "$accelerator"');
   }
 
@@ -240,7 +265,7 @@ class HotkeyShortcutService implements GlobalShortcutService {
     }
   }
 
-  /// Publiczny wrapper dla testow jednostkowych.
+  /// Public wrapper for unit tests.
   static HotKey parseAccelerator(String accelerator) =>
       _parseAccelerator(accelerator);
 

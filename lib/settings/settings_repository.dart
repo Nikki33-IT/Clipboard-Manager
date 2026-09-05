@@ -20,7 +20,7 @@ class SettingsRepository {
       final json = jsonDecode(content) as Map<String, dynamic>;
       return AppSettings.fromJson(json);
     } catch (_) {
-      // Uszkodzony plik ustawień nie może wywalić aplikacji.
+      // A corrupted settings file must never crash the app.
       return AppSettings.defaults();
     }
   }
@@ -34,21 +34,21 @@ class SettingsRepository {
     await save(AppSettings.defaults());
   }
 
-  /// Eksport do wskazanej ścieżki. Wywołujący (UI) odpowiada za pokazanie
-  /// ostrzeżenia o poufności danych przed wywołaniem tej metody.
+  /// Export to the given path. The caller (UI) is responsible for showing
+  /// a data-sensitivity warning before calling this method.
   Future<void> exportTo(String path, AppSettings settings) async {
     final file = File(path);
     await file.writeAsString(jsonEncode(settings.toJson()));
   }
 
-  /// Import z walidacją - nigdy nie wykonuje kodu z pliku, tylko parsuje
-  /// pola jako dane.
+  /// Import with validation - never executes code from the file, only
+  /// parses fields as data.
   Future<AppSettings> importFrom(String path) async {
     final file = File(path);
     final content = await file.readAsString();
     final decoded = jsonDecode(content);
     if (decoded is! Map<String, dynamic>) {
-      throw const FormatException('Nieprawidłowy format pliku ustawień.');
+      throw const FormatException('Invalid settings file format.');
     }
     final settings = AppSettings.fromJson(decoded);
     await save(settings);

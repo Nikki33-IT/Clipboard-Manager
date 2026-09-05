@@ -1,13 +1,13 @@
 import 'package:flutter/material.dart';
 
-/// Centralny motyw aplikacji (Material 3).
+/// Central app theme (Material 3).
 ///
-/// Jasny i ciemny wariant powstaja z tego samego seeda, wiec przelaczenie
-/// motywu w ustawieniach nie rozjezdza identyfikacji wizualnej.
+/// Light and dark variants grow from the same seed, so switching the theme
+/// in settings never breaks the visual identity.
 class AppTheme {
   static const defaultSeed = Color(0xFF5B67F1);
 
-  /// Dostepne akcenty do wyboru w ustawieniach (wartosci ARGB).
+  /// Accents to pick from in settings (ARGB values).
   static const accentSeeds = <int>[
     0xFF5B67F1, // indigo (domyslny)
     0xFF8B5CF6, // fiolet

@@ -5,290 +5,356 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:url_launcher/url_launcher.dart';
-import 'package:window_manager/window_manager.dart';
 
 import '../../app_version.dart';
 import '../../application/providers.dart';
+import '../../domain/localization/app_strings.dart';
+import '../../platform/desktop_platform_services.dart';
 import '../../services/update_checker.dart';
 import '../../settings/app_settings.dart';
 import '../theme/app_theme.dart';
 
-class SettingsScreen extends ConsumerWidget {
+class SettingsScreen extends ConsumerStatefulWidget {
   const SettingsScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<SettingsScreen> createState() => _SettingsScreenState();
+}
+
+class _SettingsScreenState extends ConsumerState<SettingsScreen>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _stagger;
+
+  @override
+  void initState() {
+    super.initState();
+    _stagger = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 550),
+    )..forward();
+  }
+
+  @override
+  void dispose() {
+    _stagger.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final settings = ref.watch(settingsProvider);
     final controller = ref.read(settingsProvider.notifier);
-    final scheme = Theme.of(context).colorScheme;
+    final strings = ref.watch(stringsProvider);
+
+    final cards = <Widget>[
+      _SettingsCard(
+        title: strings.historyCard,
+        icon: Icons.history,
+        children: [
+          _SettingsRow(
+            label: strings.limitLabel,
+            child: DropdownButton<int?>(
+              value: settings.historyLimit,
+              underline: const SizedBox(),
+              items: [
+                const DropdownMenuItem(value: 50, child: Text('50')),
+                const DropdownMenuItem(value: 100, child: Text('100')),
+                const DropdownMenuItem(value: 500, child: Text('500')),
+                const DropdownMenuItem(value: 1000, child: Text('1000')),
+                DropdownMenuItem(
+                    value: null, child: Text(strings.limitUnlimited)),
+              ],
+              onChanged: (value) => controller.apply(
+                settings.copyWith(historyLimit: () => value),
+              ),
+            ),
+          ),
+          _SettingsSwitch(
+            label: strings.autoCleanup,
+            value: settings.autoCleanupEnabled,
+            onChanged: (v) => controller.apply(
+              settings.copyWith(autoCleanupEnabled: v),
+            ),
+          ),
+          _SettingsRow(
+            label: strings.retentionLabel,
+            child: DropdownButton<Duration?>(
+              value: settings.retentionPeriod,
+              underline: const SizedBox(),
+              items: [
+                DropdownMenuItem(
+                    value: null, child: Text(strings.retentionUnlimited)),
+                DropdownMenuItem(
+                    value: const Duration(days: 1),
+                    child: Text(strings.retention1Day)),
+                DropdownMenuItem(
+                    value: const Duration(days: 7),
+                    child: Text(strings.retention7Days)),
+                DropdownMenuItem(
+                    value: const Duration(days: 30),
+                    child: Text(strings.retention30Days)),
+              ],
+              onChanged: (value) => controller.apply(
+                settings.copyWith(retentionPeriod: () => value),
+              ),
+            ),
+          ),
+          _SettingsSwitch(
+            label: strings.imagesLabel,
+            subtitle: strings.imagesSubtitle,
+            value: settings.imagesEnabled,
+            onChanged: (v) => controller.apply(
+              settings.copyWith(imagesEnabled: v),
+            ),
+          ),
+        ],
+      ),
+      _SettingsCard(
+        title: strings.generalCard,
+        icon: Icons.tune,
+        children: [
+          _SettingsSwitch(
+            label: strings.autostartLabel,
+            value: settings.launchAtStartup,
+            onChanged: (v) async {
+              final startup = ref.read(startupServiceProvider);
+              v ? await startup.enable() : await startup.disable();
+              await controller.apply(settings.copyWith(launchAtStartup: v));
+            },
+          ),
+          _SettingsSwitch(
+            label: strings.monitoringLabel,
+            value: settings.monitoringEnabled,
+            onChanged: (v) => controller.apply(
+              settings.copyWith(monitoringEnabled: v),
+            ),
+          ),
+          _SettingsSwitch(
+            label: strings.closeToTrayLabel,
+            subtitle: strings.closeToTraySubtitle,
+            value: settings.closeToTray,
+            onChanged: (v) => controller.apply(
+              settings.copyWith(closeToTray: v),
+            ),
+          ),
+          _SettingsSwitch(
+            label: strings.startMinimizedLabel,
+            value: settings.startMinimized,
+            onChanged: (v) => controller.apply(
+              settings.copyWith(startMinimized: v),
+            ),
+          ),
+          _SettingsSwitch(
+            label: strings.alwaysOnTopLabel,
+            value: settings.alwaysOnTop,
+            onChanged: (v) => controller.apply(
+              settings.copyWith(alwaysOnTop: v),
+            ),
+          ),
+          _SettingsSwitch(
+            label: strings.copyToastLabel,
+            value: settings.showCopyToast,
+            onChanged: (v) => controller.apply(
+              settings.copyWith(showCopyToast: v),
+            ),
+          ),
+          _SettingsRow(
+            label: strings.shortcutLabel,
+            child: OutlinedButton.icon(
+              icon: const Icon(Icons.keyboard, size: 16),
+              label: Text(settings.globalShortcut),
+              onPressed: () => _showShortcutDialog(settings),
+            ),
+          ),
+        ],
+      ),
+      _SettingsCard(
+        title: strings.appearanceCard,
+        icon: Icons.palette_outlined,
+        children: [
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 4),
+            child: SegmentedButton<ThemeModeSetting>(
+              segments: [
+                ButtonSegment(
+                  value: ThemeModeSetting.light,
+                  icon: const Icon(Icons.light_mode_outlined, size: 16),
+                  label: Text(strings.themeLight),
+                ),
+                ButtonSegment(
+                  value: ThemeModeSetting.dark,
+                  icon: const Icon(Icons.dark_mode_outlined, size: 16),
+                  label: Text(strings.themeDark),
+                ),
+                ButtonSegment(
+                  value: ThemeModeSetting.system,
+                  icon:
+                      const Icon(Icons.brightness_auto_outlined, size: 16),
+                  label: Text(strings.themeSystem),
+                ),
+              ],
+              selected: {settings.themeMode},
+              showSelectedIcon: false,
+              onSelectionChanged: (selection) => controller.apply(
+                settings.copyWith(themeMode: selection.first),
+              ),
+            ),
+          ),
+          const SizedBox(height: 12),
+          Text(
+            strings.accentLabel,
+            style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                ),
+          ),
+          const SizedBox(height: 8),
+          _AccentDots(
+            selected: settings.accentSeed,
+            onSelected: (seed) => controller.apply(
+              settings.copyWith(accentSeed: seed),
+            ),
+          ),
+          const SizedBox(height: 12),
+          _SettingsRow(
+            label: strings.languageLabel,
+            child: SegmentedButton<AppLanguage>(
+              segments: const [
+                ButtonSegment(value: AppLanguage.english, label: Text('EN')),
+                ButtonSegment(value: AppLanguage.polish, label: Text('PL')),
+              ],
+              selected: {settings.language},
+              showSelectedIcon: false,
+              onSelectionChanged: (selection) => controller.apply(
+                settings.copyWith(language: selection.first),
+              ),
+            ),
+          ),
+        ],
+      ),
+      _SettingsCard(
+        title: strings.privacyCard,
+        icon: Icons.shield_outlined,
+        children: [
+          _SettingsSwitch(
+            label: strings.saveSecretsLabel,
+            subtitle: strings.saveSecretsSubtitle,
+            value: settings.saveSecrets,
+            onChanged: (v) =>
+                controller.apply(settings.copyWith(saveSecrets: v)),
+          ),
+          _SettingsRow(
+            label: strings.excludedLabel(settings.excludedApps.length),
+            child: OutlinedButton.icon(
+              icon: const Icon(Icons.edit_outlined, size: 16),
+              label: Text(strings.editButton),
+              onPressed: () => _showExcludedAppsDialog(settings),
+            ),
+          ),
+        ],
+      ),
+      _SettingsCard(
+        title: strings.dataCard,
+        icon: Icons.folder_outlined,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: () => _exportSettings(settings),
+                  icon: const Icon(Icons.upload_outlined, size: 16),
+                  label: Text(strings.exportJson),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: _importSettings,
+                  icon: const Icon(Icons.download_outlined, size: 16),
+                  label: Text(strings.importJson),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          TextButton.icon(
+            onPressed: () async {
+              final confirmed = await _confirm(
+                strings.restoreDefaultsConfirm,
+              );
+              if (confirmed) await controller.resetToDefaults();
+            },
+            icon: const Icon(Icons.restore, size: 16),
+            label: Text(strings.restoreDefaults),
+          ),
+        ],
+      ),
+      _SettingsCard(
+        title: strings.aboutCard,
+        icon: Icons.info_outline,
+        children: [
+          _SettingsRow(
+            label: strings.versionLabel,
+            child: Text(
+              'v$kAppVersion',
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  ),
+            ),
+          ),
+          _SettingsRow(
+            label: strings.authorLabel,
+            child: TextButton.icon(
+              onPressed: () =>
+                  launchUrl(Uri.parse('https://github.com/allynIT')),
+              icon: const Icon(Icons.open_in_new, size: 16),
+              label: Text(strings.githubButton),
+            ),
+          ),
+          const SizedBox(height: 8),
+          SizedBox(
+            width: double.infinity,
+            child: FilledButton.tonalIcon(
+              onPressed: () => _checkForUpdates(context),
+              icon: const Icon(Icons.system_update_alt, size: 16),
+              label: Text(strings.checkUpdates),
+            ),
+          ),
+        ],
+      ),
+    ];
 
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
-        Text('Ustawienia', style: Theme.of(context).textTheme.headlineSmall),
+        Text(strings.settingsTitle,
+            style: Theme.of(context).textTheme.headlineSmall),
         const SizedBox(height: 20),
-
-        _SettingsCard(
-          title: 'Historia',
-          icon: Icons.history,
-          children: [
-            _SettingsRow(
-              label: 'Limit elementów',
-              child: DropdownButton<int?>(
-                value: settings.historyLimit,
-                underline: const SizedBox(),
-                items: const [
-                  DropdownMenuItem(value: 50, child: Text('50')),
-                  DropdownMenuItem(value: 100, child: Text('100')),
-                  DropdownMenuItem(value: 500, child: Text('500')),
-                  DropdownMenuItem(value: 1000, child: Text('1000')),
-                  DropdownMenuItem(value: null, child: Text('Bez limitu')),
-                ],
-                onChanged: (value) => controller.apply(
-                  settings.copyWith(historyLimit: () => value),
-                ),
-              ),
-            ),
-            _SettingsSwitch(
-              label: 'Automatyczne czyszczenie starych elementów',
-              value: settings.autoCleanupEnabled,
-              onChanged: (v) => controller.apply(
-                settings.copyWith(autoCleanupEnabled: v),
-              ),
-            ),
-            _SettingsRow(
-              label: 'Przechowuj wpisy',
-              child: DropdownButton<Duration?>(
-                value: settings.retentionPeriod,
-                underline: const SizedBox(),
-                items: const [
-                  DropdownMenuItem(
-                      value: null, child: Text('Bez limitu czasu')),
-                  DropdownMenuItem(
-                      value: Duration(days: 1), child: Text('1 dzień')),
-                  DropdownMenuItem(
-                      value: Duration(days: 7), child: Text('7 dni')),
-                  DropdownMenuItem(
-                      value: Duration(days: 30), child: Text('30 dni')),
-                ],
-                onChanged: (value) => controller.apply(
-                  settings.copyWith(retentionPeriod: () => value),
-                ),
-              ),
-            ),
-            _SettingsSwitch(
-              label: 'Zapisuj obrazy i pliki',
-              subtitle: 'Zrzuty ekranu (PrintScreen) i kopiowane pliki',
-              value: settings.imagesEnabled,
-              onChanged: (v) => controller.apply(
-                settings.copyWith(imagesEnabled: v),
-              ),
-            ),
-          ],
-        ),
-
-        _SettingsCard(
-          title: 'Ogólne',
-          icon: Icons.tune,
-          children: [
-            _SettingsSwitch(
-              label: 'Uruchamiaj przy starcie systemu',
-              value: settings.launchAtStartup,
-              onChanged: (v) async {
-                final startup = ref.read(startupServiceProvider);
-                v ? await startup.enable() : await startup.disable();
-                await controller.apply(settings.copyWith(launchAtStartup: v));
-              },
-            ),
-            _SettingsSwitch(
-              label: 'Monitorowanie schowka aktywne',
-              value: settings.monitoringEnabled,
-              onChanged: (v) => controller.apply(
-                settings.copyWith(monitoringEnabled: v),
-              ),
-            ),
-            _SettingsSwitch(
-              label: 'Przycisk X minimalizuje do traya',
-              subtitle: 'Wylaczone: X zamyka aplikacje jak z traya',
-              value: settings.closeToTray,
-              onChanged: (v) => controller.apply(
-                settings.copyWith(closeToTray: v),
-              ),
-            ),
-            _SettingsSwitch(
-              label: 'Start zminimalizowany do traya',
-              value: settings.startMinimized,
-              onChanged: (v) => controller.apply(
-                settings.copyWith(startMinimized: v),
-              ),
-            ),
-            _SettingsSwitch(
-              label: 'Okno zawsze na wierzchu',
-              value: settings.alwaysOnTop,
-              onChanged: (v) => controller.apply(
-                settings.copyWith(alwaysOnTop: v),
-              ),
-            ),
-            _SettingsSwitch(
-              label: 'Pokazuj potwierdzenie kopiowania',
-              value: settings.showCopyToast,
-              onChanged: (v) => controller.apply(
-                settings.copyWith(showCopyToast: v),
-              ),
-            ),
-            _SettingsRow(
-              label: 'Globalny skrót',
-              child: OutlinedButton.icon(
-                icon: const Icon(Icons.keyboard, size: 16),
-                label: Text(settings.globalShortcut),
-                onPressed: () => _showShortcutDialog(context, ref, settings),
-              ),
-            ),
-          ],
-        ),
-
-        _SettingsCard(
-          title: 'Wygląd',
-          icon: Icons.palette_outlined,
-          children: [
-            Padding(
-              padding: const EdgeInsets.symmetric(vertical: 4),
-              child: SegmentedButton<ThemeModeSetting>(
-                segments: const [
-                  ButtonSegment(
-                    value: ThemeModeSetting.light,
-                    icon: Icon(Icons.light_mode_outlined, size: 16),
-                    label: Text('Jasny'),
-                  ),
-                  ButtonSegment(
-                    value: ThemeModeSetting.dark,
-                    icon: Icon(Icons.dark_mode_outlined, size: 16),
-                    label: Text('Ciemny'),
-                  ),
-                  ButtonSegment(
-                    value: ThemeModeSetting.system,
-                    icon: Icon(Icons.brightness_auto_outlined, size: 16),
-                    label: Text('Systemowy'),
-                  ),
-                ],
-                selected: {settings.themeMode},
-                showSelectedIcon: false,
-                onSelectionChanged: (selection) => controller.apply(
-                  settings.copyWith(themeMode: selection.first),
-                ),
-              ),
-            ),
-            const SizedBox(height: 12),
-            _AccentDots(
-              selected: settings.accentSeed,
-              onSelected: (seed) => controller.apply(
-                settings.copyWith(accentSeed: seed),
-              ),
-            ),
-          ],
-        ),
-
-        _SettingsCard(
-          title: 'Prywatność i bezpieczeństwo',
-          icon: Icons.shield_outlined,
-          children: [
-            _SettingsSwitch(
-              label: 'Zapisuj potencjalne sekrety',
-              subtitle: 'Domyślnie wykryte hasła/tokeny nie są zapisywane',
-              value: settings.saveSecrets,
-              onChanged: (v) => controller.apply(settings.copyWith(saveSecrets: v)),
-            ),
-            _SettingsRow(
-              label: 'Wykluczone aplikacje (${settings.excludedApps.length})',
-              child: OutlinedButton.icon(
-                icon: const Icon(Icons.edit_outlined, size: 16),
-                label: const Text('Edytuj'),
-                onPressed: () =>
-                    _showExcludedAppsDialog(context, ref, settings),
-              ),
-            ),
-          ],
-        ),
-
-        _SettingsCard(
-          title: 'Dane',
-          icon: Icons.folder_outlined,
-          children: [
-            Row(
-              children: [
-                Expanded(
-                  child: OutlinedButton.icon(
-                    onPressed: () => _exportSettings(context, ref, settings),
-                    icon: const Icon(Icons.upload_outlined, size: 16),
-                    label: const Text('Eksportuj JSON'),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: OutlinedButton.icon(
-                    onPressed: () => _importSettings(context, ref),
-                    icon: const Icon(Icons.download_outlined, size: 16),
-                    label: const Text('Importuj JSON'),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            TextButton.icon(
-              onPressed: () async {
-                final confirmed = await _confirm(
-                  context,
-                  'Przywrócić domyślne ustawienia?',
-                );
-                if (confirmed) await controller.resetToDefaults();
-              },
-              icon: const Icon(Icons.restore, size: 16),
-              label: const Text('Przywróć ustawienia domyślne'),
-            ),
-          ],
-        ),
-        _SettingsCard(
-          title: 'O aplikacji',
-          icon: Icons.info_outline,
-          children: [
-            _SettingsRow(
-              label: 'Wersja',
-              child: Text(
-                'v$kAppVersion',
-                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      color: scheme.onSurfaceVariant,
-                    ),
-              ),
-            ),
-            const SizedBox(height: 8),
-            SizedBox(
-              width: double.infinity,
-              child: FilledButton.tonalIcon(
-                onPressed: () => _checkForUpdates(context),
-                icon: const Icon(Icons.system_update_alt, size: 16),
-                label: const Text('Sprawdź aktualizacje'),
-              ),
-            ),
-          ],
-        ),
+        for (var i = 0; i < cards.length; i++)
+          _Stagger(
+            index: i,
+            count: cards.length,
+            animation: _stagger,
+            child: cards[i],
+          ),
       ],
     );
   }
 
   Future<void> _checkForUpdates(BuildContext context) async {
+    final strings = ref.read(stringsProvider);
     showDialog(
       context: context,
       barrierDismissible: false,
-      builder: (_) => const AlertDialog(
+      builder: (_) => AlertDialog(
         content: Row(
           children: [
-            SizedBox(
+            const SizedBox(
               width: 20,
               height: 20,
               child: CircularProgressIndicator(strokeWidth: 2),
             ),
-            SizedBox(width: 16),
-            Text('Sprawdzanie aktualizacji…'),
+            const SizedBox(width: 16),
+            Text(strings.checkingUpdates),
           ],
         ),
       ),
@@ -298,23 +364,25 @@ class SettingsScreen extends ConsumerWidget {
     String? error;
     try {
       info = await UpdateChecker().checkForUpdate();
+    } on UpdateCheckException catch (e) {
+      error = strings.updateFetchError(e.statusCode);
     } catch (e) {
       error = e.toString();
     }
 
     if (!context.mounted) return;
-    Navigator.pop(context); // zamknij dialog ładowania
+    Navigator.pop(context); // close the loading dialog
 
     if (error != null) {
       showDialog(
         context: context,
         builder: (_) => AlertDialog(
-          title: const Text('Błąd sprawdzania aktualizacji'),
+          title: Text(strings.updateErrorTitle),
           content: Text(error!),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context),
-              child: const Text('OK'),
+              child: Text(strings.ok),
             ),
           ],
         ),
@@ -326,12 +394,12 @@ class SettingsScreen extends ConsumerWidget {
       showDialog(
         context: context,
         builder: (_) => AlertDialog(
-          title: const Text('Brak aktualizacji'),
-          content: const Text('Masz już najnowszą wersję aplikacji.'),
+          title: Text(strings.upToDateTitle),
+          content: Text(strings.upToDateBody),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context),
-              child: const Text('OK'),
+              child: Text(strings.ok),
             ),
           ],
         ),
@@ -342,17 +410,14 @@ class SettingsScreen extends ConsumerWidget {
     showDialog(
       context: context,
       builder: (_) => AlertDialog(
-        title: const Text('Dostępna aktualizacja'),
+        title: Text(strings.updateAvailableTitle),
         content: Text(
-          'Nowa wersja v${info!.latestVersion} jest dostępna '
-          '(masz v$kAppVersion).\n\n'
-          'Aplikacja pobierze paczkę portable i podmieni pliki. '
-          'Zamknij aplikację po kliknięciu "Aktualizuj", jeśli poprosi.',
+          strings.updateAvailableBody(info!.latestVersion, kAppVersion),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('Później'),
+            child: Text(strings.laterButton),
           ),
           if (info.downloadUrl != null)
             FilledButton(
@@ -360,7 +425,7 @@ class SettingsScreen extends ConsumerWidget {
                 Navigator.pop(context);
                 await _runUpdateScript(context, info!.downloadUrl!);
               },
-              child: const Text('Aktualizuj'),
+              child: Text(strings.updateButton),
             )
           else
             FilledButton(
@@ -368,17 +433,19 @@ class SettingsScreen extends ConsumerWidget {
                 Navigator.pop(context);
                 await launchUrl(Uri.parse(info!.releaseUrl));
               },
-              child: const Text('Otwórz stronę wydania'),
+              child: Text(strings.openReleasePage),
             ),
         ],
       ),
     );
   }
 
-  Future<void> _runUpdateScript(BuildContext context, String downloadUrl) async {
-    // Skrypt update.ps1 leży obok pliku .exe w paczce portable. Uruchamiamy
-    // go z parametrem URL i pozwalamy mu zamknąć bieżący proces, pobrać
-    // nową wersję i podmienić pliki, po czym uruchomić aplikację ponownie.
+  Future<void> _runUpdateScript(
+      BuildContext context, String downloadUrl) async {
+    final strings = ref.read(stringsProvider);
+    // The update.ps1 script sits next to the .exe in the portable package.
+    // We run it with the URL parameter and let it close the current process,
+    // download the new version, swap the files and relaunch the app.
     final exeDir = File(Platform.resolvedExecutable).parent.path;
     final scriptPath = '$exeDir\\update.ps1';
 
@@ -386,10 +453,7 @@ class SettingsScreen extends ConsumerWidget {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(
-              'Nie znaleziono update.ps1 obok pliku .exe ($scriptPath). '
-              'Pobierz nową wersję ręcznie ze strony wydania.',
-            ),
+            content: Text(strings.missingUpdateScript(scriptPath)),
           ),
         );
       }
@@ -408,7 +472,7 @@ class SettingsScreen extends ConsumerWidget {
       mode: ProcessStartMode.detached,
     );
 
-    // Skrypt sam zamknie tę instancję aplikacji przed podmianą plików.
+    // The script closes this app instance itself before swapping files.
     await Future.delayed(const Duration(milliseconds: 300));
     exit(0);
   }
@@ -423,9 +487,9 @@ class SettingsScreen extends ConsumerWidget {
       key == LogicalKeyboardKey.metaLeft ||
       key == LogicalKeyboardKey.metaRight;
 
-  /// Buduje tekst skrotu z fizycznego stanu klawiatury. Zwraca null, gdy
-  /// nie da sie zbudowac poprawnej kombinacji (brak modyfikatora albo
-  /// klawisz bez jednoczesnej etykiety).
+  /// Builds a shortcut text from the physical keyboard state. Returns null
+  /// when no valid combination can be built (missing modifier or a key
+  /// without a single-char label).
   static String? _comboFromHardware(LogicalKeyboardKey? mainKey) {
     final hw = HardwareKeyboard.instance;
     final parts = <String>[];
@@ -441,28 +505,25 @@ class SettingsScreen extends ConsumerWidget {
     return parts.join('+');
   }
 
-  Future<void> _showShortcutDialog(
-    BuildContext context,
-    WidgetRef ref,
-    AppSettings settings,
-  ) async {
-    String? combo; // zaakceptowana kombinacja (null = jeszcze brak)
+  Future<void> _showShortcutDialog(AppSettings settings) async {
+    final strings = ref.read(stringsProvider);
+    String? combo; // accepted combination (null = none yet)
     String display = settings.globalShortcut;
 
     final result = await showDialog<String>(
       context: context,
       builder: (context) => StatefulBuilder(
         builder: (context, setState) => AlertDialog(
-          title: const Text('Zmień globalny skrót'),
+          title: Text(strings.shortcutDialogTitle),
           content: SizedBox(
             width: 320,
             child: KeyboardListener(
               focusNode: FocusNode()..requestFocus(),
               autofocus: true,
               onKeyEvent: (event) {
-                // Modyfikatory sledzimy ze stanu klawiatury, a nie z etykiet
-                // klawiszy - etykiety typu "Control Left" produkowaly dawniej
-                // nieprawidlowe skroty w stylu "Control Left+X".
+                // Modifiers are tracked from the keyboard state, not from
+                // key labels - labels like "Control Left" used to produce
+                // invalid shortcuts such as "Control Left+X".
                 if (event is! KeyDownEvent) return;
                 final key = event.logicalKey;
                 if (_isModifierKey(key)) {
@@ -474,7 +535,7 @@ class SettingsScreen extends ConsumerWidget {
                       combo = built;
                       display = built;
                     } else {
-                      display = 'Przytrzymaj Ctrl/Shift/Alt i naciśnij klawisz…';
+                      display = strings.shortcutHoldHint;
                     }
                   });
                 }
@@ -482,12 +543,13 @@ class SettingsScreen extends ConsumerWidget {
               child: Container(
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  border: Border.all(color: Theme.of(context).colorScheme.outline),
+                  border:
+                      Border.all(color: Theme.of(context).colorScheme.outline),
                   borderRadius: BorderRadius.circular(8),
                 ),
                 alignment: Alignment.center,
                 child: Text(
-                  display.isEmpty ? 'Naciśnij kombinację klawiszy…' : display,
+                  display.isEmpty ? strings.shortcutPressHint : display,
                   style: Theme.of(context).textTheme.titleMedium,
                 ),
               ),
@@ -496,42 +558,38 @@ class SettingsScreen extends ConsumerWidget {
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context),
-              child: const Text('Anuluj'),
+              child: Text(strings.cancel),
             ),
             FilledButton(
-              onPressed: combo == null ? null : () => Navigator.pop(context, combo),
-              child: const Text('Zapisz'),
+              onPressed:
+                  combo == null ? null : () => Navigator.pop(context, combo),
+              child: Text(strings.saveButton),
             ),
           ],
         ),
       ),
     );
 
-    if (result != null && result.isNotEmpty && context.mounted) {
+    if (result != null && result.isNotEmpty && mounted) {
       final controller = ref.read(settingsProvider.notifier);
       await controller.apply(settings.copyWith(globalShortcut: result));
 
-      // Rejestrujemy od razu z PRAWDZIWYM callbackiem - wczesniej byl tu
-      // pusty callback i skrot milkl az do restartu aplikacji.
+      // Register immediately with the REAL callback - it used to be empty
+      // here, which muted the shortcut until the app restarted.
       final shortcutService = ref.read(globalShortcutServiceProvider);
-      await shortcutService.register(result, () async {
-        await windowManager.show();
-        await windowManager.focus();
-      });
+      await shortcutService.register(
+          result, HotkeyShortcutService.toggleMainWindow);
 
-      if (context.mounted) {
+      if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Skrót zmieniony na $result')),
+          SnackBar(content: Text(strings.shortcutChanged(result))),
         );
       }
     }
   }
 
-  Future<void> _showExcludedAppsDialog(
-    BuildContext context,
-    WidgetRef ref,
-    AppSettings settings,
-  ) async {
+  Future<void> _showExcludedAppsDialog(AppSettings settings) async {
+    final strings = ref.read(stringsProvider);
     final excluded = List<String>.from(settings.excludedApps);
     final input = TextEditingController();
 
@@ -539,7 +597,7 @@ class SettingsScreen extends ConsumerWidget {
       context: context,
       builder: (context) => StatefulBuilder(
         builder: (context, setState) => AlertDialog(
-          title: const Text('Wykluczone aplikacje'),
+          title: Text(strings.excludedDialogTitle),
           content: SizedBox(
             width: 340,
             child: Column(
@@ -550,26 +608,26 @@ class SettingsScreen extends ConsumerWidget {
                     Expanded(
                       child: TextField(
                         controller: input,
-                        decoration: const InputDecoration(
-                          hintText: 'np. keepass.exe',
+                        decoration: InputDecoration(
+                          hintText: strings.excludedHint,
                         ),
-                        onSubmitted: (_) => _addExcluded(
-                            input, excluded, setState),
+                        onSubmitted: (_) =>
+                            _addExcluded(input, excluded, setState),
                       ),
                     ),
                     const SizedBox(width: 8),
                     IconButton.filledTonal(
-                      tooltip: 'Dodaj',
+                      tooltip: strings.addTooltip,
                       icon: const Icon(Icons.add, size: 18),
-                      onPressed: () => _addExcluded(
-                          input, excluded, setState),
+                      onPressed: () =>
+                          _addExcluded(input, excluded, setState),
                     ),
                   ],
                 ),
                 const SizedBox(height: 12),
                 Flexible(
                   child: excluded.isEmpty
-                      ? const Text('Brak wykluczen.')
+                      ? Text(strings.noExclusions)
                       : ListView.builder(
                           shrinkWrap: true,
                           itemCount: excluded.length,
@@ -578,11 +636,10 @@ class SettingsScreen extends ConsumerWidget {
                             contentPadding: EdgeInsets.zero,
                             title: Text(excluded[i]),
                             trailing: IconButton(
-                              tooltip: 'Usuń',
-                              icon: const Icon(
-                                  Icons.delete_outline, size: 18),
-                              onPressed: () => setState(
-                                  () => excluded.removeAt(i)),
+                              tooltip: strings.deleteTooltip,
+                              icon: const Icon(Icons.delete_outline, size: 18),
+                              onPressed: () =>
+                                  setState(() => excluded.removeAt(i)),
                             ),
                           ),
                         ),
@@ -593,7 +650,7 @@ class SettingsScreen extends ConsumerWidget {
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context),
-              child: const Text('Anuluj'),
+              child: Text(strings.cancel),
             ),
             FilledButton(
               onPressed: () async {
@@ -602,7 +659,7 @@ class SettingsScreen extends ConsumerWidget {
                       settings.copyWith(excludedApps: excluded),
                     );
               },
-              child: const Text('Zapisz'),
+              child: Text(strings.saveButton),
             ),
           ],
         ),
@@ -624,60 +681,56 @@ class SettingsScreen extends ConsumerWidget {
     });
   }
 
-  Future<void> _exportSettings(
-    BuildContext context,
-    WidgetRef ref,
-    AppSettings settings,
-  ) async {
-    final proceed = await _confirm(
-      context,
-      'Plik eksportu może zawierać poufne informacje (np. listę wykluczonych '
-      'aplikacji). Kontynuować?',
-    );
+  Future<void> _exportSettings(AppSettings settings) async {
+    final strings = ref.read(stringsProvider);
+    final proceed = await _confirm(strings.exportWarning);
     if (!proceed) return;
 
     final dir = await getApplicationSupportDirectory();
     final path = '${dir.path}\\settings_export.json';
     await ref.read(settingsRepositoryProvider).exportTo(path, settings);
 
-    if (context.mounted) {
+    if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Wyeksportowano do: $path')),
+        SnackBar(content: Text(strings.exportedTo(path))),
       );
     }
   }
 
-  Future<void> _importSettings(BuildContext context, WidgetRef ref) async {
+  Future<void> _importSettings() async {
+    final strings = ref.read(stringsProvider);
     final dir = await getApplicationSupportDirectory();
     final path = '${dir.path}\\settings_export.json';
 
     if (!await File(path).exists()) {
-      if (context.mounted) {
+      if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Nie znaleziono pliku: $path')),
+          SnackBar(content: Text(strings.importMissing(path))),
         );
       }
       return;
     }
 
     try {
-      final imported = await ref.read(settingsRepositoryProvider).importFrom(path);
+      final imported =
+          await ref.read(settingsRepositoryProvider).importFrom(path);
       await ref.read(settingsProvider.notifier).apply(imported);
-      if (context.mounted) {
+      if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Ustawienia zaimportowane.')),
+          SnackBar(content: Text(strings.importedOk)),
         );
       }
-    } catch (e) {
-      if (context.mounted) {
+    } catch (_) {
+      if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Błąd importu: nieprawidłowy plik.')),
+          SnackBar(content: Text(strings.importError)),
         );
       }
     }
   }
 
-  Future<bool> _confirm(BuildContext context, String message) async {
+  Future<bool> _confirm(String message) async {
+    final strings = ref.read(stringsProvider);
     final result = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
@@ -685,16 +738,60 @@ class SettingsScreen extends ConsumerWidget {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: const Text('Anuluj'),
+            child: Text(strings.cancel),
           ),
           FilledButton(
             onPressed: () => Navigator.pop(context, true),
-            child: const Text('Kontynuuj'),
+            child: Text(strings.continueButton),
           ),
         ],
       ),
     );
     return result ?? false;
+  }
+}
+
+/// Staggered card entrance: each card fades + slides in with a delay
+/// based on its position. Runs once per settings visit.
+class _Stagger extends StatelessWidget {
+  final int index;
+  final int count;
+  final Animation<double> animation;
+  final Widget child;
+
+  const _Stagger({
+    required this.index,
+    required this.count,
+    required this.animation,
+    required this.child,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: animation,
+      child: child,
+      builder: (context, child) {
+        final t = CurvedAnimation(
+          parent: animation,
+          curve: Interval(
+            index / count,
+            1.0,
+            curve: Curves.easeOutCubic,
+          ),
+        );
+        return FadeTransition(
+          opacity: t,
+          child: SlideTransition(
+            position: Tween(
+              begin: const Offset(0, 0.06),
+              end: Offset.zero,
+            ).animate(t),
+            child: child,
+          ),
+        );
+      },
+    );
   }
 }
 
@@ -794,7 +891,9 @@ class _SettingsRow extends StatelessWidget {
       padding: const EdgeInsets.symmetric(vertical: 6),
       child: Row(
         children: [
-          Expanded(child: Text(label, style: Theme.of(context).textTheme.bodyMedium)),
+          Expanded(
+              child: Text(label,
+                  style: Theme.of(context).textTheme.bodyMedium)),
           child,
         ],
       ),

@@ -1,8 +1,8 @@
 import 'dart:math' as math;
 import '../domain/repositories/interfaces.dart';
 
-/// Heurystyczny detektor sekretów. Nie jest doskonały (to z definicji
-/// niemożliwe bez fałszywych trafień), ale pokrywa najczęstsze wzorce.
+/// Heuristic secret detector. Not perfect by definition (impossible
+/// without false positives), but covers the most common patterns.
 class HeuristicSecretDetector implements SecretDetector {
   static final List<RegExp> _patterns = [
     RegExp(r'^ghp_[A-Za-z0-9]{36,}$'), // GitHub token
@@ -10,7 +10,7 @@ class HeuristicSecretDetector implements SecretDetector {
     RegExp(r'^AKIA[0-9A-Z]{16}$'), // AWS access key id
     RegExp(r'^eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$'), // JWT
     RegExp(r'-----BEGIN (RSA |EC |OPENSSH )?PRIVATE KEY-----'),
-    RegExp(r'^\d{4}[ -]?\d{4}[ -]?\d{4}[ -]?\d{4}$'), // karta płatnicza
+    RegExp(r'^\d{4}[ -]?\d{4}[ -]?\d{4}[ -]?\d{4}$'), // payment card
   ];
 
   @override
@@ -22,8 +22,8 @@ class HeuristicSecretDetector implements SecretDetector {
       if (pattern.hasMatch(trimmed)) return true;
     }
 
-    // Krótkie, jednowyrazowe ciągi o wysokiej entropii i mieszanym alfabecie
-    // (typowe dla haseł/tokenów wygenerowanych losowo).
+    // Short single-word strings with high entropy and a mixed alphabet
+    // (typical for randomly generated passwords/tokens).
     if (!trimmed.contains(' ') &&
         trimmed.length >= 16 &&
         trimmed.length <= 128 &&

@@ -1,9 +1,10 @@
 import 'dart:typed_data';
 
 import '../entities/clip_item.dart';
+import '../localization/app_strings.dart';
 
-/// Monitoruje systemowy schowek i emituje nowa zawartosc: tekstowa,
-/// obrazkowa (PNG) oraz listy kopiowanych plikow.
+/// Monitors the system clipboard and emits new content: text,
+/// images (PNG) and lists of copied files.
 abstract class ClipboardMonitor {
   Stream<String> get onNewClipboardText;
   Stream<Uint8List> get onNewClipboardImage;
@@ -13,16 +14,16 @@ abstract class ClipboardMonitor {
   void resume();
   bool get isRunning;
 
-  /// Wywoływane przed wewnętrznym ustawieniem schowka przez aplikację,
-  /// żeby monitor nie złapał własnego zapisu (zapobiega pętli).
+  /// Called before the app writes to the clipboard itself, so the monitor
+  /// does not pick up its own write (prevents loops).
   void suppressNextChange();
 
-  /// Jw. dla wlasnego zapisu obrazka / plikow.
+  /// Same for our own image / file writes.
   void suppressNextImage();
   void suppressNextFiles();
 }
 
-/// Trwałe przechowywanie historii (SQLite + pliki PNG obrazkow).
+/// Persistent history storage (SQLite + PNG files for images).
 abstract class HistoryRepository {
   Future<List<ClipItem>> getAll({String? searchQuery, ClipContentType? filterType});
   Future<void> add(ClipItem item);
@@ -33,19 +34,19 @@ abstract class HistoryRepository {
   Future<void> deleteOlderThan(Duration retention);
   Future<ClipItem?> findDuplicate(String content);
 
-  /// Zapisuje bajty obrazka do pliku i zwraca jego sciezke (do pola content).
+  /// Saves image bytes to a file and returns its path (for the content field).
   Future<String> saveImage(String id, Uint8List bytes);
 
   /// Szuka wpisu z identycznym obrazkiem (porownanie bajtow).
   Future<ClipItem?> findDuplicateImage(Uint8List bytes);
 }
 
-/// Wykrywanie potencjalnie wrażliwych danych (klucze, hasła, tokeny...).
+/// Detects potentially sensitive data (keys, passwords, tokens...).
 abstract class SecretDetector {
   bool looksLikeSecret(String content);
 }
 
-/// Bezpieczne szyfrowanie/przechowywanie (system keystore + AES-GCM/ChaCha20).
+/// Secure encryption/storage (system keystore + AES-GCM/ChaCha20).
 abstract class SecureStorage {
   Future<void> init();
   Future<String> encrypt(String plaintext);
@@ -74,7 +75,10 @@ abstract class TrayService {
   });
   Future<void> updateMonitoringLabel(bool isRunning);
 
-  /// Usuwa ikone z traya. Wywolywane przy zamykaniu aplikacji, zeby
-  /// po procesie nie zostal "duch" ikony w zasobniku.
+  /// Rebuilds the tray menu in a new language, keeping the current state.
+  Future<void> updateStrings(AppStrings strings);
+
+  /// Removes the tray icon. Called on shutdown so no icon
+  /// ghost stays in the tray after the process.
   Future<void> shutdown();
 }

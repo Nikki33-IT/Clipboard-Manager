@@ -4,97 +4,102 @@
 
 # ClipVault
 
-**Lokalny, prywatny menedzer historii schowka na Windows.**
+**Local, private clipboard history manager for Windows.**
 
-Wszystko co kopiujesz (Ctrl+C) — jedno wcisniecie przycisku dzieli Cie od odzyskania tego.
+Everything you copy (Ctrl+C) — one keypress away from getting it back.
 
 [![Release](https://img.shields.io/github/v/release/allynIT/Clipboard-Manager?label=release&color=green)](https://github.com/allynIT/Clipboard-Manager/releases)
 [![Platform](https://img.shields.io/badge/platform-Windows%2010%2F11-blue)](https://github.com/allynIT/Clipboard-Manager/releases)
 [![Flutter](https://img.shields.io/badge/Flutter-3.47-blue?logo=flutter)](https://flutter.dev)
-[![Tests](https://img.shields.io/badge/tests-12%20passed-green)](#testy)
-[![License](https://img.shields.io/badge/license-MIT-lightgrey)](#licencja)
+[![Tests](https://img.shields.io/badge/tests-passing-green)](#tests)
+[![License](https://img.shields.io/badge/license-MIT-lightgrey)](#license)
 
-[⬇ Pobierz najnowsza wersje](https://github.com/allynIT/Clipboard-Manager/releases/latest) · [Zglos blad](https://github.com/allynIT/Clipboard-Manager/issues) · [Jak to dziala](#jak-to-dziala)
+[⬇ Download latest](https://github.com/allynIT/Clipboard-Manager/releases/latest) · [Report a bug](https://github.com/allynIT/Clipboard-Manager/issues) · [How it works](#how-it-works)
 
 </div>
 
 ---
 
-## Dlaczego ClipVault
+## Why ClipVault
 
-| | ClipVault | Zwykly schowek Windows |
+| | ClipVault | Plain Windows clipboard |
 |---|---|---|
-| Historia bez limitu czasu | Tak (SQLite, limit do 1000+) | Tylko 25 ostatnich, czyszczone po restarcie |
-| Wyszukiwanie i filtry | Tak (tekst, linki, e-maile, przypiete) | Nie |
-| Pinezki i licznik uzyc | Tak | Nie |
-| Globalny skrot | Tak (`Ctrl+Shift+V`) | Tak (`Win+V`), ale bez historii dlugoterminowej |
-| Wykrywanie haseł i tokenow | Tak (domyslnie nie zapisuje) | Nie |
-| Telemetria / konto / chmura | Brak — 100% lokalnie | Konto Microsoft, synchronizacja z chmura |
+| Long-term history | Yes (SQLite, up to 1000+ items) | Only last 25, wiped on reboot |
+| Search & filters | Yes (text, links, emails, pinned) | No |
+| Pins & usage counter | Yes | No |
+| Global hotkey | Yes (`Ctrl+Shift+V`, toggles window) | Yes (`Win+V`), but no long-term history |
+| Password & token detection | Yes (skipped by default) | No |
+| Telemetry / account / cloud | None — 100% local | Microsoft account, cloud sync |
 
-## Funkcje
+## Features
 
-- **Historia schowka** — automatyczny zapis kazdego skopiowanego tekstu, deduplikacja (ponowne kopiowanie przenosi wpis na gore), przypinanie, licznik uzyc i czas wzgledny ("5 min temu").
-- **Zrzuty ekranu i obrazki** — PrintScreen i kopiowane obrazki laduja na liscie z miniaturkami (konwersja do lekkiego PNG), jedno klikniecie wklada je z powrotem do schowka. Tak samo kopiowane **pliki**.
-- **Blyskawiczne wyszukiwanie** — z debounce, podswietlaniem frazy i filtrami: Wszystko / Przypiete / Linki / E-maile / Tekst. Enter kopiuje pierwszy wynik, po skopiowaniu dostajesz dyskretny toast.
-- **Praca w tle jak na Windows przystalo** — ikona w trayu z menu, X minimalizuje zamiast zamykac, globalny skrot `Ctrl+Shift+V`, opcjonalny autostart.
-- **Stroz prywatnosci** — wykrywa tokeny GitHub, klucze API, JWT, klucze prywatne, numery kart i losowe hasla — i domyslnie ich **nie zapisuje**.
-- **Aktualizacje jednym klikiem** — Ustawienia → O aplikacji → Sprawdz aktualizacje. Zero ruchu sieciowego bez Twojej zgody.
-- **Motywy** — jasny, ciemny, systemowy + wybor koloru akcentu (8 kolorow). Skroty: `Ctrl+F` (szukaj), `Esc` (zamknij ustawienia).
+- **Clipboard history** — every copied text saved automatically, deduplication (re-copying moves the entry to the top), pins, usage counter and relative time ("5 min ago").
+- **Screenshots & images** — PrintScreen and copied images land in history with thumbnails (converted to lightweight PNG), one click puts them back on the clipboard. Copied **files** too.
+- **Blazing search** — debounced, with phrase highlighting and filters: All / Pinned / Links / Emails / Text. Enter copies the first result.
+- **Day groups & entrance animations** — pinned section on top, then Today / Yesterday / dates; new entries slide in, scrolling stays smooth.
+- **A real Windows citizen** — tray icon with menu (left-click opens, right-click shows options), X minimizes instead of quitting, global toggle hotkey `Ctrl+Shift+V`, optional autostart.
+- **Privacy guard** — detects GitHub tokens, API keys, JWTs, private keys, card numbers and random passwords — and **does not save them** by default.
+- **One-click updates** — Settings → About → Check for updates. Zero network traffic without your consent.
+- **Looks** — light / dark / system themes + 8 accent colors, English & Polish UI. Shortcuts: `Ctrl+F` (search), `Esc` (close settings).
 
-## Instalacja
+## Installation
 
-1. Pobierz **`ClipVault-Windows-Portable.zip`** ze strony [Releases](https://github.com/allynIT/Clipboard-Manager/releases/latest).
-2. Rozpakuj w dowolnym miejscu.
-3. Uruchom **`clipvault.exe`** — bez instalatora, bez uprawnien administratora.
+1. Download **`ClipVault-Windows-Portable.zip`** from [Releases](https://github.com/allynIT/Clipboard-Manager/releases/latest).
+2. Unpack anywhere.
+3. Run **`clipvault.exe`** — no installer, no admin rights needed.
 
-> Skopiuj cos (Ctrl+C) i wcisnij `Ctrl+Shift+V` — wpis pojawi sie na liscie.
+> Copy something (Ctrl+C) and press `Ctrl+Shift+V` — the entry appears in the list. Press the hotkey again to hide the window.
 
-## Ustawienia w skrocie
+## Settings at a glance
 
-Historia (limit 50–1000, retencja 1/7/30 dni, auto-czyszczenie, zapis obrazow i plikow) · Autostart (tez zminimalizowany) · Monitorowanie · X zamyka lub minimalizuje · Okno zawsze na wierzchu · Wlasny skrot globalny · Motyw + akcent · Zapisywanie sekretow (domyslnie OFF) · Edytowalna lista wykluczonych aplikacji · Toast kopiowania · Eksport/import JSON · Reset do domyslnych · Sprawdzanie aktualizacji.
+History (50–1000 limit, 1/7/30-day retention, auto-clean, images & files) · Autostart (also minimized) · Monitoring · X closes or minimizes · Always on top · Custom global hotkey · Theme + accent + language · Secrets saving (OFF by default) · Editable excluded-app list · Copy toast · JSON export/import · Reset to defaults · Update check.
 
-## Prywatnosc
+## Privacy
 
-- **Local-first:** historia (`clipboard_history.db`) i ustawienia (`settings.json`) leza tylko w `%APPDATA%\com.example\ClipVault`. Zadnej chmury, zadnej telemetrii, zadnych kont.
-- **Jedyny ruch sieciowy** to Twoje jawne klikniecie "Sprawdz aktualizacje" (zapytanie do GitHub API o najnowszy Release).
-- Eksport ustawien wczesniej pokazuje ostrzezenie — plik moze zawierac wrazliwe dane.
+- **Local-first:** history (`clipboard_history.db`) and settings (`settings.json`) live only in `%APPDATA%\com.example\ClipVault`. No cloud, no telemetry, no accounts.
+- **The only network traffic** is your explicit "Check for updates" click (a GitHub API query for the latest release).
+- Settings export shows a warning first — the file may hold sensitive data.
 
-## Jak to dziala
+## How it works
 
 ```
-Schowek Windows ──polling 500ms──▶ Detektor sekretow ──▶ Klasyfikator typu
-        (pomija wlasne wklejenia)      (blokuje hasla)      (tekst/link/e-mail)
+Windows clipboard ──500ms poll──▶ Secret detector ──▶ Type classifier
+      (skips our own writes)      (blocks passwords)   (text/link/email)
                                                               │
                                                               ▼
                                             SQLite ◀── HistoryController (Riverpod)
 ```
 
-Stan: Flutter + `flutter_riverpod` · Baza: SQLite przez `sqflite_common_ffi` (zapytania parametryzowane) · Platforma: `window_manager`, `tray_manager`, `hotkey_manager`, `launch_at_startup`.
+State: Flutter + `flutter_riverpod` · Database: SQLite via `sqflite_common_ffi` (parameterized queries) · Platform: `window_manager`, `tray_manager`, `hotkey_manager`, `launch_at_startup` · Images: `pasteboard` + `image` (BMP → resized PNG).
 
-## Dla deweloperow
+## For developers
 
 ```powershell
-flutter pub get        # zaleznosci
-flutter test           # 12 testow jednostkowych
-flutter run -d windows # tryb deweloperski
-build_windows_portable.bat  # paczka: build\releases\ClipVault-Windows-Portable.zip
+flutter pub get        # dependencies
+flutter test           # unit tests
+flutter run -d windows # dev mode
+build_windows_portable.bat  # package: build\releases\ClipVault-Windows-Portable.zip
 ```
 
 ```
 lib/
-  domain/       - ClipItem, klasyfikator, interfejsy
-  data/         - repozytorium SQLite
-  application/  - kontrolery Riverpod (historia, ustawienia)
-  platform/     - schowek, tray, skrot globalny, autostart
-  security/     - heurystyczny detektor sekretow
-  settings/     - AppSettings + repozytorium JSON
-  services/     - sprawdzanie aktualizacji (GitHub Releases), log diagnostyczny
-  presentation/ - ekrany, widgety, motyw Material 3
-test/           - testy jednostkowe
+  domain/       - ClipItem, classifier, interfaces, localization (EN/PL)
+  data/         - SQLite repository
+  application/  - Riverpod controllers (history, settings)
+  platform/     - clipboard, tray, global hotkey, autostart
+  security/     - heuristic secret detector
+  settings/     - AppSettings + JSON repository
+  services/     - update checker (GitHub Releases), log file
+  presentation/ - screens, widgets, Material 3 theme
+test/           - unit tests
 ```
 
-Nowe wydanie: podbij `kAppVersion` (`lib/app_version.dart`) i `version` (`pubspec.yaml`) → zbuduj paczke → utworz Release z tagiem `vX.Y.Z` i zalacz ZIP (nazwa musi zawierac `portable` i konczyc sie na `.zip`).
+New release: bump `kAppVersion` (`lib/app_version.dart`) and `version` (`pubspec.yaml`) → build the package → create a Release tagged `vX.Y.Z` with the ZIP attached (name must contain `portable` and end with `.zip`).
 
-## Licencja
+## Author
 
-MIT — zobacz [LICENSE](LICENSE).
+Made by **[allynIT](https://github.com/allynIT)** — bug reports and ideas welcome in [Issues](https://github.com/allynIT/Clipboard-Manager/issues).
+
+## License
+
+MIT — see [LICENSE](LICENSE).

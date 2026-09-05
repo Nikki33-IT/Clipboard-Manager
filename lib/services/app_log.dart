@@ -3,10 +3,10 @@ import 'dart:io';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 
-/// Minimalny logger plikowy do diagnostyki.
+/// Minimal file logger for diagnostics.
 ///
-/// Wersja release nie ma konsoli, wiec jedyny slad po bledach startu
-/// (np. martwy tray) to ten plik. Sciezka: %APPDATA%/com.example/ClipVault/clipvault.log
+/// Release builds have no console, so this file is the only trace of
+/// startup errors (e.g. a dead tray). Path: %APPDATA%/com.example/ClipVault/clipvault.log
 class AppLog {
   static Future<String> get filePath async {
     final dir = await getApplicationSupportDirectory();
@@ -17,14 +17,14 @@ class AppLog {
     try {
       final file = File(await filePath);
       if (await file.exists() && await file.length() > 256 * 1024) {
-        await file.writeAsString(''); // prosta rotacja: nie rosniemy w nieskonczonosc
+        await file.writeAsString(''); // simple rotation: never grow forever
       }
       await file.writeAsString(
         '[${DateTime.now().toIso8601String()}] $message\n',
         mode: FileMode.append,
       );
     } catch (_) {
-      // Logger nigdy nie moze wywalic aplikacji.
+      // The logger must never crash the app.
     }
   }
 }
