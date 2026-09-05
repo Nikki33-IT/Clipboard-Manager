@@ -6,6 +6,7 @@ import 'package:launch_at_startup/launch_at_startup.dart';
 import 'package:tray_manager/tray_manager.dart';
 
 import '../domain/repositories/interfaces.dart';
+import '../services/app_log.dart';
 
 class TrayManagerService implements TrayService {
   void Function()? _onOpenHistory;
@@ -28,9 +29,21 @@ class TrayManagerService implements TrayService {
     _onOpenSettings = onOpenSettings;
     _onExit = onExit;
 
-    await trayManager.setIcon('assets/tray_icon.ico');
-    await trayManager.setToolTip('ClipVault');
+    await AppLog.write('tray: init start');
+    try {
+      await trayManager.setIcon('assets/tray_icon.ico');
+      await AppLog.write('tray: icon OK');
+    } catch (e) {
+      // Bez ikony menu nadal ma sens, wiec lecimy dalej.
+      await AppLog.write('tray: setIcon FAILED: $e');
+    }
+    try {
+      await trayManager.setToolTip('ClipVault');
+    } catch (e) {
+      await AppLog.write('tray: setToolTip FAILED: $e');
+    }
     await _rebuildMenu(isRunning: true);
+    await AppLog.write('tray: menu OK');
 
     trayManager.addListener(_TrayListener(
       onOpenHistory: () => _onOpenHistory?.call(),
@@ -44,6 +57,11 @@ class TrayManagerService implements TrayService {
   @override
   Future<void> updateMonitoringLabel(bool isRunning) async {
     await _rebuildMenu(isRunning: isRunning);
+  }
+
+  @override
+  Future<void> shutdown() async {
+    await trayManager.destroy();
   }
 
   Future<void> _rebuildMenu({required bool isRunning}) async {
@@ -77,6 +95,7 @@ class _TrayListener with TrayListener {
 
   @override
   void onTrayMenuItemClick(MenuItem menuItem) {
+    AppLog.write('tray: click ${menuItem.key}');
     switch (menuItem.key) {
       case 'open_history':
         onOpenHistory();
@@ -98,6 +117,7 @@ class _TrayListener with TrayListener {
 
   @override
   void onTrayIconMouseDown() {
+    AppLog.write('tray: left-click icon');
     onOpenHistory();
   }
 }

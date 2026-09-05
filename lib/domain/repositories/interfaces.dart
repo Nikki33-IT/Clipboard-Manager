@@ -58,4 +58,8 @@ abstract class TrayService {
     required void Function() onExit,
   });
   Future<void> updateMonitoringLabel(bool isRunning);
+
+  /// Usuwa ikone z traya. Wywolywane przy zamykaniu aplikacji, zeby
+  /// po procesie nie zostal "duch" ikony w zasobniku.
+  Future<void> shutdown();
 }
