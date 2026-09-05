@@ -12,6 +12,13 @@ void main() {
       historyLimit: () => 100,
       themeMode: ThemeModeSetting.dark,
       globalShortcut: 'Ctrl+Shift+X',
+      accentSeed: 0xFFF44336,
+      retentionPeriod: () => const Duration(days: 7),
+      excludedApps: const ['notepad.exe'],
+      closeToTray: false,
+      startMinimized: true,
+      alwaysOnTop: true,
+      showCopyToast: false,
     );
 
     final json = settings.toJson();
@@ -20,6 +27,13 @@ void main() {
     expect(restored.historyLimit, 100);
     expect(restored.themeMode, ThemeModeSetting.dark);
     expect(restored.globalShortcut, 'Ctrl+Shift+X');
+    expect(restored.accentSeed, 0xFFF44336);
+    expect(restored.retentionPeriod, const Duration(days: 7));
+    expect(restored.excludedApps, ['notepad.exe']);
+    expect(restored.closeToTray, isFalse);
+    expect(restored.startMinimized, isTrue);
+    expect(restored.alwaysOnTop, isTrue);
+    expect(restored.showCopyToast, isFalse);
   });
 
   test('brak limitu (null) jest zachowywany', () {

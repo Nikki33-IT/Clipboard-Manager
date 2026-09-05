@@ -1,5 +1,7 @@
 <div align="center">
 
+<img src="docs/logo.png" width="96" alt="ClipVault logo"/>
+
 # ClipVault
 
 **Lokalny, prywatny menedzer historii schowka na Windows.**
@@ -32,11 +34,11 @@ Wszystko co kopiujesz (Ctrl+C) — jedno wcisniecie przycisku dzieli Cie od odzy
 ## Funkcje
 
 - **Historia schowka** — automatyczny zapis kazdego skopiowanego tekstu, deduplikacja (ponowne kopiowanie przenosi wpis na gore), przypinanie, licznik uzyc i czas wzgledny ("5 min temu").
-- **Blyskawiczne wyszukiwanie** — z debounce i filtrami: Wszystko / Przypiete / Linki / E-maile / Tekst. Enter kopiuje pierwszy wynik.
+- **Blyskawiczne wyszukiwanie** — z debounce, podswietlaniem frazy i filtrami: Wszystko / Przypiete / Linki / E-maile / Tekst. Enter kopiuje pierwszy wynik, po skopiowaniu dostajesz dyskretny toast.
 - **Praca w tle jak na Windows przystalo** — ikona w trayu z menu, X minimalizuje zamiast zamykac, globalny skrot `Ctrl+Shift+V`, opcjonalny autostart.
 - **Stroz prywatnosci** — wykrywa tokeny GitHub, klucze API, JWT, klucze prywatne, numery kart i losowe hasla — i domyslnie ich **nie zapisuje**.
 - **Aktualizacje jednym klikiem** — Ustawienia → O aplikacji → Sprawdz aktualizacje. Zero ruchu sieciowego bez Twojej zgody.
-- **Motywy** — jasny, ciemny, systemowy. Skroty: `Ctrl+F` (szukaj), `Esc` (zamknij ustawienia).
+- **Motywy** — jasny, ciemny, systemowy + wybor koloru akcentu (8 kolorow). Skroty: `Ctrl+F` (szukaj), `Esc` (zamknij ustawienia).
 
 ## Instalacja
 
@@ -48,7 +50,7 @@ Wszystko co kopiujesz (Ctrl+C) — jedno wcisniecie przycisku dzieli Cie od odzy
 
 ## Ustawienia w skrocie
 
-Historia (limit 50–1000, auto-czyszczenie) · Autostart · Monitorowanie · Wlasny skrot globalny · Motyw · Zapisywanie sekretow (domyslnie OFF) · Eksport/import JSON · Reset do domyslnych · Sprawdzanie aktualizacji.
+Historia (limit 50–1000, retencja 1/7/30 dni, auto-czyszczenie) · Autostart (tez zminimalizowany) · Monitorowanie · X zamyka lub minimalizuje · Okno zawsze na wierzchu · Wlasny skrot globalny · Motyw + akcent · Zapisywanie sekretow (domyslnie OFF) · Edytowalna lista wykluczonych aplikacji · Toast kopiowania · Eksport/import JSON · Reset do domyslnych · Sprawdzanie aktualizacji.
 
 ## Prywatnosc
 

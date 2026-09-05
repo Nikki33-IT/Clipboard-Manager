@@ -72,6 +72,22 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
     setState(() => _filter = _HistoryFilter.all);
   }
 
+  /// Kopiowanie z opcjonalnym potwierdzeniem (toast), wlaczanym w ustawieniach.
+  Future<void> _copyItem(ClipItem item) async {
+    await ref.read(historyControllerProvider.notifier).copyToClipboard(item);
+    if (!mounted || !context.mounted) return;
+    if (ref.read(settingsProvider).showCopyToast) {
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          const SnackBar(
+            content: Text('Skopiowano do schowka'),
+            duration: Duration(seconds: 1),
+          ),
+        );
+    }
+  }
+
   List<ClipItem> _visible(List<ClipItem> items) {
     switch (_filter) {
       case _HistoryFilter.all:
@@ -123,7 +139,7 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
             // niekoniecznie pierwszy w calej bazie.
             onSubmitted: (_) {
               if (visible.isNotEmpty) {
-                controller.copyToClipboard(visible.first);
+                _copyItem(visible.first);
               }
             },
           ),
@@ -155,7 +171,8 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
                         child: ClipTile(
                           key: ValueKey(item.id),
                           item: item,
-                          onCopy: () => controller.copyToClipboard(item),
+                          highlight: _searchController.text,
+                          onCopy: () => _copyItem(item),
                           onPin: () => controller.togglePin(item),
                           onDelete: () => controller.deleteItem(item.id),
                         ),

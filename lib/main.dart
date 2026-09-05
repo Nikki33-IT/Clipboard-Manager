@@ -84,21 +84,7 @@ class _RootAppState extends ConsumerState<_RootApp> with WindowListener {
       },
       onExit: () async {
         await AppLog.write('app: exit requested');
-        // Kolejnosc ma znaczenie:
-        // 1. zdejmij ikone z traya (bez "ducha" po procesie),
-        // 2. wylacz przechwytywanie zamkniecia i poczekaj na potwierdzenie
-        //    ze strony natywnej (inaczej destroy() konczy jako "schowaj"),
-        // 3. zniszcz okno,
-        // 4. exit(0) jako gwarancja - proces znika na pewno, nawet gdyby
-        //    ktorys z powyzszych krokow natywnych zawiodl.
-        try {
-          await tray.shutdown();
-        } catch (_) {}
-        try {
-          await windowManager.setPreventClose(false);
-          await windowManager.destroy();
-        } catch (_) {}
-        exit(0);
+        await _exitApp();
       },
         );
         trayOk = true;
@@ -111,17 +97,44 @@ class _RootAppState extends ConsumerState<_RootApp> with WindowListener {
       }
     }
 
+    await AppLog.write('app: tray init done');
+
+    await windowManager.setAlwaysOnTop(settings.alwaysOnTop);
+    if (settings.startMinimized) {
+      await windowManager.hide();
+      await AppLog.write('app: started minimized');
+    }
+
     await shortcutService.register(settings.globalShortcut, () async {
       await windowManager.show();
       await windowManager.focus();
     });
   }
 
+  /// Pelne zamkniecie: zdejmij ikone z traya, wylacz przechwytywanie
+  /// zamkniecia, zniszcz okno, a na koncu exit(0) jako gwarancja.
+  Future<void> _exitApp() async {
+    try {
+      await ref.read(trayServiceProvider).shutdown();
+    } catch (_) {}
+    try {
+      await windowManager.setPreventClose(false);
+      await windowManager.destroy();
+    } catch (_) {}
+    exit(0);
+  }
+
   @override
   void onWindowClose() async {
-    final isPreventClose = await windowManager.isPreventClose();
-    if (isPreventClose) {
-      await windowManager.hide(); // minimalizacja do traya
+    // X minimalizuje do traya tylko gdy wlaczona jest taka opcja -
+    // w przeciwnym razie zachowuj sie jak "Zamknij aplikacje" z traya.
+    if (ref.read(settingsProvider).closeToTray) {
+      final isPreventClose = await windowManager.isPreventClose();
+      if (isPreventClose) {
+        await windowManager.hide();
+      }
+    } else {
+      await _exitApp();
     }
   }
 

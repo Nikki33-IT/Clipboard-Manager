@@ -5,23 +5,35 @@ import 'package:flutter/material.dart';
 /// Jasny i ciemny wariant powstaja z tego samego seeda, wiec przelaczenie
 /// motywu w ustawieniach nie rozjezdza identyfikacji wizualnej.
 class AppTheme {
-  static const _seed = Color(0xFF5B67F1);
+  static const defaultSeed = Color(0xFF5B67F1);
+
+  /// Dostepne akcenty do wyboru w ustawieniach (wartosci ARGB).
+  static const accentSeeds = <int>[
+    0xFF5B67F1, // indigo (domyslny)
+    0xFF8B5CF6, // fiolet
+    0xFF2196F3, // niebieski
+    0xFF009688, // morski
+    0xFF4CAF50, // zielony
+    0xFFFF9800, // pomaranczowy
+    0xFFF44336, // czerwony
+    0xFFE91E63, // rozowy
+  ];
 
   static const double radiusS = 10;
   static const double radiusM = 14;
   static const double radiusL = 18;
 
-  static ThemeData light() {
+  static ThemeData light({Color seed = defaultSeed}) {
     final scheme = ColorScheme.fromSeed(
-      seedColor: _seed,
+      seedColor: seed,
       brightness: Brightness.light,
     );
     return _base(scheme);
   }
 
-  static ThemeData dark() {
+  static ThemeData dark({Color seed = defaultSeed}) {
     final scheme = ColorScheme.fromSeed(
-      seedColor: _seed,
+      seedColor: seed,
       brightness: Brightness.dark,
     );
     return _base(scheme);

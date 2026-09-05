@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:window_manager/window_manager.dart';
 
 import '../application/providers.dart';
 import 'screens/history_screen.dart';
@@ -38,17 +39,23 @@ class _ClipVaultAppState extends ConsumerState<ClipVaultApp> {
   Widget build(BuildContext context) {
     final settings = ref.watch(settingsProvider);
 
+    // Zmiana "zawsze na wierzchu" na zywo, bez restartu aplikacji.
+    ref.listen<AppSettings>(settingsProvider, (_, next) {
+      windowManager.setAlwaysOnTop(next.alwaysOnTop);
+    });
+
     final themeMode = switch (settings.themeMode) {
       ThemeModeSetting.light => ThemeMode.light,
       ThemeModeSetting.dark => ThemeMode.dark,
       ThemeModeSetting.system => ThemeMode.system,
     };
+    final seed = Color(settings.accentSeed);
 
     return MaterialApp(
       debugShowCheckedModeBanner: false,
       title: 'ClipVault',
-      theme: AppTheme.light(),
-      darkTheme: AppTheme.dark(),
+      theme: AppTheme.light(seed: seed),
+      darkTheme: AppTheme.dark(seed: seed),
       themeMode: themeMode,
       home: Shortcuts(
         shortcuts: {

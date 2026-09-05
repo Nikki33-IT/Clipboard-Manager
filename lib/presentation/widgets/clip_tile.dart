@@ -13,12 +13,16 @@ class ClipTile extends StatelessWidget {
   final VoidCallback onPin;
   final VoidCallback onDelete;
 
+  /// Aktualna fraza wyszukiwania - jej wystapienia sa podswietlane w podgladzie.
+  final String highlight;
+
   const ClipTile({
     super.key,
     required this.item,
     required this.onCopy,
     required this.onPin,
     required this.onDelete,
+    this.highlight = '',
   });
 
   /// Ikona + etykieta typu tresci.
@@ -44,6 +48,36 @@ class ClipTile extends StatelessWidget {
   static String _previewText(String content) =>
       content.length > 160 ? '${content.substring(0, 160)}…' : content;
 
+  /// Podglad tresci z podswietlona fraza wyszukiwania (case-insensitive).
+  InlineSpan _previewSpan(ColorScheme scheme) {
+    final text = item.isSecret ? '••••••••••••' : _previewText(item.content);
+    final query = highlight.trim();
+    if (query.isEmpty || item.isSecret) return TextSpan(text: text);
+    final lower = text.toLowerCase();
+    final needle = query.toLowerCase();
+    final spans = <TextSpan>[];
+    var start = 0;
+    while (true) {
+      final i = lower.indexOf(needle, start);
+      if (i < 0) {
+        spans.add(TextSpan(text: text.substring(start)));
+        break;
+      }
+      if (i > start) spans.add(TextSpan(text: text.substring(start, i)));
+      spans.add(TextSpan(
+        text: text.substring(i, i + needle.length),
+        style: TextStyle(
+          backgroundColor: scheme.primary,
+          color: scheme.onPrimary,
+          fontWeight: FontWeight.w600,
+        ),
+      ));
+      start = i + needle.length;
+      if (start >= text.length) break;
+    }
+    return TextSpan(children: spans);
+  }
+
   /// Krotki czas wzgledny po polsku ("5 min temu", "wczoraj").
   static String _relativeTime(DateTime dt) {
     final diff = DateTime.now().difference(dt);
@@ -63,7 +97,7 @@ class ClipTile extends StatelessWidget {
     final textTheme = Theme.of(context).textTheme;
     final (typeIcon, typeLabel) = _typeMeta;
 
-    final preview = item.isSecret ? '••••••••••••' : _previewText(item.content);
+    final preview = _previewSpan(scheme);
     final meta = item.isSecret
         ? 'Ukryty sekret'
         : '${_relativeTime(item.copiedAt)}  •  $typeLabel'
@@ -99,7 +133,7 @@ class ClipTile extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Text(
+                      Text.rich(
                         preview,
                         maxLines: 3,
                         overflow: TextOverflow.ellipsis,

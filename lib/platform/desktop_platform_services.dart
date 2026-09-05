@@ -117,8 +117,21 @@ class _TrayListener with TrayListener {
 
   @override
   void onTrayIconMouseDown() {
-    AppLog.write('tray: left-click icon');
-    onOpenHistory();
+    // Lewy klik pokazuje menu (z "Zamknij aplikacje"), a nie tylko okno -
+    // inaczej opcja zamkniecia jest dla uzytkownika nie do znalezienia.
+    AppLog.write('tray: left-click icon -> popup menu');
+    _popupMenu();
+  }
+
+  /// Pokazanie menu z obsluga bledow - wywolanie jest async, a listener
+  /// jest synchroniczny, wiec blad trzeba zlapac tu, nie u wolajacego.
+  Future<void> _popupMenu() async {
+    try {
+      await trayManager.popUpContextMenu();
+      await AppLog.write('tray: popup menu shown');
+    } catch (e) {
+      await AppLog.write('tray: popup menu FAILED: $e');
+    }
   }
 }
 

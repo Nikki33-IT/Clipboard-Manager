@@ -10,6 +10,7 @@ import '../../app_version.dart';
 import '../../application/providers.dart';
 import '../../services/update_checker.dart';
 import '../../settings/app_settings.dart';
+import '../theme/app_theme.dart';
 
 class SettingsScreen extends ConsumerWidget {
   const SettingsScreen({super.key});
@@ -54,6 +55,26 @@ class SettingsScreen extends ConsumerWidget {
                 settings.copyWith(autoCleanupEnabled: v),
               ),
             ),
+            _SettingsRow(
+              label: 'Przechowuj wpisy',
+              child: DropdownButton<Duration?>(
+                value: settings.retentionPeriod,
+                underline: const SizedBox(),
+                items: const [
+                  DropdownMenuItem(
+                      value: null, child: Text('Bez limitu czasu')),
+                  DropdownMenuItem(
+                      value: Duration(days: 1), child: Text('1 dzień')),
+                  DropdownMenuItem(
+                      value: Duration(days: 7), child: Text('7 dni')),
+                  DropdownMenuItem(
+                      value: Duration(days: 30), child: Text('30 dni')),
+                ],
+                onChanged: (value) => controller.apply(
+                  settings.copyWith(retentionPeriod: () => value),
+                ),
+              ),
+            ),
           ],
         ),
 
@@ -75,6 +96,35 @@ class SettingsScreen extends ConsumerWidget {
               value: settings.monitoringEnabled,
               onChanged: (v) => controller.apply(
                 settings.copyWith(monitoringEnabled: v),
+              ),
+            ),
+            _SettingsSwitch(
+              label: 'Przycisk X minimalizuje do traya',
+              subtitle: 'Wylaczone: X zamyka aplikacje jak z traya',
+              value: settings.closeToTray,
+              onChanged: (v) => controller.apply(
+                settings.copyWith(closeToTray: v),
+              ),
+            ),
+            _SettingsSwitch(
+              label: 'Start zminimalizowany do traya',
+              value: settings.startMinimized,
+              onChanged: (v) => controller.apply(
+                settings.copyWith(startMinimized: v),
+              ),
+            ),
+            _SettingsSwitch(
+              label: 'Okno zawsze na wierzchu',
+              value: settings.alwaysOnTop,
+              onChanged: (v) => controller.apply(
+                settings.copyWith(alwaysOnTop: v),
+              ),
+            ),
+            _SettingsSwitch(
+              label: 'Pokazuj potwierdzenie kopiowania',
+              value: settings.showCopyToast,
+              onChanged: (v) => controller.apply(
+                settings.copyWith(showCopyToast: v),
               ),
             ),
             _SettingsRow(
@@ -119,6 +169,13 @@ class SettingsScreen extends ConsumerWidget {
                 ),
               ),
             ),
+            const SizedBox(height: 12),
+            _AccentDots(
+              selected: settings.accentSeed,
+              onSelected: (seed) => controller.apply(
+                settings.copyWith(accentSeed: seed),
+              ),
+            ),
           ],
         ),
 
@@ -133,16 +190,12 @@ class SettingsScreen extends ConsumerWidget {
               onChanged: (v) => controller.apply(settings.copyWith(saveSecrets: v)),
             ),
             _SettingsRow(
-              label: 'Wykluczone aplikacje',
-              child: Expanded(
-                child: Text(
-                  settings.excludedApps.join(', '),
-                  textAlign: TextAlign.end,
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: scheme.onSurfaceVariant,
-                      ),
-                  overflow: TextOverflow.ellipsis,
-                ),
+              label: 'Wykluczone aplikacje (${settings.excludedApps.length})',
+              child: OutlinedButton.icon(
+                icon: const Icon(Icons.edit_outlined, size: 16),
+                label: const Text('Edytuj'),
+                onPressed: () =>
+                    _showExcludedAppsDialog(context, ref, settings),
               ),
             ),
           ],
@@ -418,6 +471,103 @@ class SettingsScreen extends ConsumerWidget {
     }
   }
 
+  Future<void> _showExcludedAppsDialog(
+    BuildContext context,
+    WidgetRef ref,
+    AppSettings settings,
+  ) async {
+    final excluded = List<String>.from(settings.excludedApps);
+    final input = TextEditingController();
+
+    await showDialog(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setState) => AlertDialog(
+          title: const Text('Wykluczone aplikacje'),
+          content: SizedBox(
+            width: 340,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Row(
+                  children: [
+                    Expanded(
+                      child: TextField(
+                        controller: input,
+                        decoration: const InputDecoration(
+                          hintText: 'np. keepass.exe',
+                        ),
+                        onSubmitted: (_) => _addExcluded(
+                            input, excluded, setState),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    IconButton.filledTonal(
+                      tooltip: 'Dodaj',
+                      icon: const Icon(Icons.add, size: 18),
+                      onPressed: () => _addExcluded(
+                          input, excluded, setState),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                Flexible(
+                  child: excluded.isEmpty
+                      ? const Text('Brak wykluczen.')
+                      : ListView.builder(
+                          shrinkWrap: true,
+                          itemCount: excluded.length,
+                          itemBuilder: (context, i) => ListTile(
+                            dense: true,
+                            contentPadding: EdgeInsets.zero,
+                            title: Text(excluded[i]),
+                            trailing: IconButton(
+                              tooltip: 'Usuń',
+                              icon: const Icon(
+                                  Icons.delete_outline, size: 18),
+                              onPressed: () => setState(
+                                  () => excluded.removeAt(i)),
+                            ),
+                          ),
+                        ),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Anuluj'),
+            ),
+            FilledButton(
+              onPressed: () async {
+                Navigator.pop(context);
+                await ref.read(settingsProvider.notifier).apply(
+                      settings.copyWith(excludedApps: excluded),
+                    );
+              },
+              child: const Text('Zapisz'),
+            ),
+          ],
+        ),
+      ),
+    );
+    input.dispose();
+  }
+
+  void _addExcluded(
+    TextEditingController input,
+    List<String> excluded,
+    StateSetter setState,
+  ) {
+    final value = input.text.trim();
+    if (value.isEmpty || excluded.contains(value)) return;
+    setState(() {
+      excluded.add(value);
+      input.clear();
+    });
+  }
+
   Future<void> _exportSettings(
     BuildContext context,
     WidgetRef ref,
@@ -489,6 +639,46 @@ class SettingsScreen extends ConsumerWidget {
       ),
     );
     return result ?? false;
+  }
+}
+
+class _AccentDots extends StatelessWidget {
+  final int selected;
+  final ValueChanged<int> onSelected;
+
+  const _AccentDots({required this.selected, required this.onSelected});
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Wrap(
+      spacing: 10,
+      runSpacing: 10,
+      children: [
+        for (final seed in AppTheme.accentSeeds)
+          InkWell(
+            borderRadius: BorderRadius.circular(20),
+            onTap: () => onSelected(seed),
+            child: Container(
+              width: 36,
+              height: 36,
+              decoration: BoxDecoration(
+                color: Color(seed),
+                shape: BoxShape.circle,
+                border: Border.all(
+                  color: seed == selected
+                      ? scheme.onSurface
+                      : Colors.transparent,
+                  width: 2,
+                ),
+              ),
+              child: seed == selected
+                  ? const Icon(Icons.check, size: 18, color: Colors.white)
+                  : null,
+            ),
+          ),
+      ],
+    );
   }
 }
 
