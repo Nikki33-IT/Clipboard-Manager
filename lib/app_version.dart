@@ -3,5 +3,5 @@
 const String kAppVersion = '0.1.0';
 
 /// Adres repozytorium GitHub w formacie "wlasciciel/nazwa-repo".
-/// PODMIEŃ na swoje repozytorium przed użyciem funkcji sprawdzania aktualizacji.
-const String kGithubRepo = 'https://github.com/allynIT/Clipboard-Manager.git';
+/// Wymagany przez UpdateChecker do budowania URL API GitHub.
+const String kGithubRepo = 'allynIT/Clipboard-Manager';
