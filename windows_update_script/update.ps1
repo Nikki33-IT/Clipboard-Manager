@@ -5,12 +5,12 @@ param(
 
 $ErrorActionPreference = "Stop"
 
-$exeName = "copypaste_clone.exe"
-$tempDir = Join-Path $env:TEMP "copypaste_update_$(Get-Random)"
+$exeName = "clipvault.exe"
+$tempDir = Join-Path $env:TEMP "clipvault_update_$(Get-Random)"
 $zipPath = Join-Path $tempDir "update.zip"
 
 Write-Host "==============================================="
-Write-Host "  Aktualizacja CopyPaste Clone"
+Write-Host "  Aktualizacja ClipVault"
 Write-Host "==============================================="
 
 try {
@@ -19,7 +19,7 @@ try {
     Write-Host "[1/5] Oczekiwanie na zamkniecie aplikacji..."
     $maxWait = 10
     $waited = 0
-    while ((Get-Process -Name "copypaste_clone" -ErrorAction SilentlyContinue) -and $waited -lt $maxWait) {
+    while ((Get-Process -Name "clipvault" -ErrorAction SilentlyContinue) -and $waited -lt $maxWait) {
         Start-Sleep -Seconds 1
         $waited++
     }

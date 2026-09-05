@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:copypaste_clone/security/heuristic_secret_detector.dart';
+import 'package:clipvault/security/heuristic_secret_detector.dart';
 
 void main() {
   final detector = HeuristicSecretDetector();

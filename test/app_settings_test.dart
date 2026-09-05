@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:copypaste_clone/settings/app_settings.dart';
+import 'package:clipvault/settings/app_settings.dart';
 
 void main() {
   test('domyślne ustawienia mają limit 500', () {

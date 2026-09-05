@@ -2,7 +2,7 @@
 setlocal enabledelayedexpansion
 
 echo ===============================================
-echo   Build CopyPaste Clone - Windows Portable
+echo   Build ClipVault - Windows Portable
 echo ===============================================
 
 where flutter >nul 2>nul
@@ -49,12 +49,12 @@ copy /Y "windows_update_script\update.ps1" "build\windows\x64\runner\Release\upd
 echo.
 echo [6/6] Pakowanie do ZIP...
 if not exist "build\releases" mkdir "build\releases"
-powershell -Command "Compress-Archive -Path 'build\windows\x64\runner\Release\*' -DestinationPath 'build\releases\CopyPaste-Windows-Portable.zip' -Force"
+powershell -Command "Compress-Archive -Path 'build\windows\x64\runner\Release\*' -DestinationPath 'build\releases\ClipVault-Windows-Portable.zip' -Force"
 
 echo.
 echo ===============================================
 echo   Gotowe! Paczka:
-echo   build\releases\CopyPaste-Windows-Portable.zip
+echo   build\releases\ClipVault-Windows-Portable.zip
 echo ===============================================
 exit /b 0
 

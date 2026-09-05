@@ -29,6 +29,7 @@ class TrayManagerService implements TrayService {
     _onExit = onExit;
 
     await trayManager.setIcon('assets/tray_icon.ico');
+    await trayManager.setToolTip('ClipVault');
     await _rebuildMenu(isRunning: true);
 
     trayManager.addListener(_TrayListener(
@@ -53,7 +54,7 @@ class TrayManagerService implements TrayService {
       MenuItem.separator(),
       MenuItem(key: 'settings', label: 'Ustawienia'),
       MenuItem.separator(),
-      MenuItem(key: 'exit', label: 'Wyjście'),
+      MenuItem(key: 'exit', label: 'Zamknij aplikację'),
     ]);
     await trayManager.setContextMenu(menu);
   }
@@ -104,7 +105,7 @@ class _TrayListener with TrayListener {
 class LaunchAtStartupService implements StartupService {
   LaunchAtStartupService() {
     launchAtStartup.setup(
-      appName: 'CopyPaste Clone',
+      appName: 'ClipVault',
       appPath: Platform.resolvedExecutable,
     );
   }

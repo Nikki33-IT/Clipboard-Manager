@@ -21,6 +21,7 @@ Future<void> main() async {
   );
 
   await windowManager.waitUntilReadyToShow(windowOptions, () async {
+    await windowManager.setTitle('ClipVault');
     await windowManager.show();
     await windowManager.focus();
   });
@@ -73,7 +74,10 @@ class _RootAppState extends ConsumerState<_RootApp> with WindowListener {
         await windowManager.focus();
       },
       onExit: () async {
-        windowManager.setPreventClose(false);
+        // Najpierw WYLACZ przechwytywanie zamkniecia (i poczekaj na
+        // potwierdzenie ze strony natywnej), inaczej destroy() zostanie
+        // zinterpretowane jako "schowaj do traya" i apka nie zamknie sie.
+        await windowManager.setPreventClose(false);
         await windowManager.destroy();
       },
     );
@@ -99,5 +103,5 @@ class _RootAppState extends ConsumerState<_RootApp> with WindowListener {
   }
 
   @override
-  Widget build(BuildContext context) => const CopyPasteApp();
+  Widget build(BuildContext context) => const ClipVaultApp();
 }

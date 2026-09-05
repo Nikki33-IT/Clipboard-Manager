@@ -1,4 +1,4 @@
-# Clipboard Manager (CopyPaste Clone)
+# ClipVault
 
 [![Flutter](https://img.shields.io/badge/Flutter-3.47-blue?logo=flutter)](https://flutter.dev)
 [![Platform](https://img.shields.io/badge/platform-Windows-blue)](https://www.microsoft.com/windows)
@@ -115,9 +115,9 @@ HistoryController (Riverpod StateNotifier) -> Historia / wyszukiwarka w UI
 ## Instalacja (gotowy .exe)
 
 1. Wejdz w **Releases** tego repozytorium.
-2. Pobierz `CopyPaste-Windows-Portable.zip` z najnowszego wydania.
+2. Pobierz `ClipVault-Windows-Portable.zip` z najnowszego wydania.
 3. Rozpakuj w dowolnym miejscu.
-4. Uruchom `copypaste_clone.exe`.
+4. Uruchom `clipvault.exe`.
 
 Aplikacja osiądzie w trayu. Skopiuj cos (Ctrl+C) i otworz historie globalnym skrotem `Ctrl+Shift+V`.
 
@@ -167,7 +167,7 @@ Jak wydac nowa wersje (dla opiekuna repo):
 
 1. Podbij `kAppVersion` w `lib/app_version.dart` i `version:` w `pubspec.yaml`.
 2. Zbuduj paczke portable (patrz nizej).
-3. Na GitHubie: **Releases -> Draft a new release**, tag np. `v0.2.0`, zalacz `CopyPaste-Windows-Portable.zip` (nazwa musi zawierac `portable` i konczyc sie na `.zip`).
+3. Na GitHubie: **Releases -> Draft a new release**, tag np. `v0.2.0`, zalacz `ClipVault-Windows-Portable.zip` (nazwa musi zawierac `portable` i konczyc sie na `.zip`).
 4. Opublikuj. Uzytkownicy ze starsza wersja zobacza aktualizacje po kliknieciu przycisku.
 
 > `kGithubRepo` w `lib/app_version.dart` musi miec format `wlasciciel/nazwa-repo` (np. `allynIT/Clipboard-Manager`), bo na jego podstawie budowany jest URL GitHub API.
@@ -214,7 +214,7 @@ Najprosciej gotowym skryptem (zależności, testy, build release, dolaczenie `up
 build_windows_portable.bat
 ```
 
-Wynik: `build\releases\CopyPaste-Windows-Portable.zip` (w srodku `.exe`, DLL-e, `data/`, `update.ps1`).
+Wynik: `build\releases\ClipVault-Windows-Portable.zip` (w srodku `.exe`, DLL-e, `data/`, `update.ps1`).
 
 Recznie:
 
@@ -222,7 +222,7 @@ Recznie:
 flutter pub get
 flutter build windows --release
 Copy-Item windows_update_script\update.ps1 build\windows\x64\runner\Release\
-Compress-Archive -Path build\windows\x64\runner\Release\* -DestinationPath build\releases\CopyPaste-Windows-Portable.zip -Force
+Compress-Archive -Path build\windows\x64\runner\Release\* -DestinationPath build\releases\ClipVault-Windows-Portable.zip -Force
 ```
 
 ---

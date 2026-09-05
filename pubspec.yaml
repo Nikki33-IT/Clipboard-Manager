@@ -1,5 +1,5 @@
-name: copypaste_clone
-description: Lokalny menedżer historii schowka (Windows desktop).
+name: clipvault
+description: Lokalny menedzer historii schowka (Windows desktop).
 publish_to: 'none'
 version: 0.1.0
 

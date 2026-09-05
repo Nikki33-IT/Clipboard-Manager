@@ -1,6 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:copypaste_clone/domain/content_type_classifier.dart';
-import 'package:copypaste_clone/domain/entities/clip_item.dart';
+import 'package:clipvault/domain/content_type_classifier.dart';
+import 'package:clipvault/domain/entities/clip_item.dart';
 
 void main() {
   group('ContentTypeClassifier', () {

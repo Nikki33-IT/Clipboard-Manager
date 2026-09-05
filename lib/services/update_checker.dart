@@ -30,7 +30,7 @@ class UpdateChecker {
     final client = HttpClient();
     try {
       final request = await client.getUrl(uri);
-      request.headers.set('User-Agent', 'CopyPasteClone-UpdateChecker');
+      request.headers.set('User-Agent', 'ClipVault-UpdateChecker');
       request.headers.set('Accept', 'application/vnd.github+json');
 
       final response = await request.close().timeout(

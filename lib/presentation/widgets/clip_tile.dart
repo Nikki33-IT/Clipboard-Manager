@@ -2,9 +2,13 @@ import 'package:flutter/material.dart';
 
 import '../../domain/entities/clip_item.dart';
 
+/// Karta pojedynczego wpisu historii.
+///
+/// Celowo lekka ([StatelessWidget], zero animacji) — lista ma byc plynna
+/// nawet przy kilkuset elementach. Ciezsze efekty (Tween/AnimatedContainer
+/// na kazdym wierszu) zamulaly przewijanie, wiec ich tu nie ma.
 class ClipTile extends StatelessWidget {
   final ClipItem item;
-  final bool isSelected;
   final VoidCallback onCopy;
   final VoidCallback onPin;
   final VoidCallback onDelete;
@@ -12,90 +16,133 @@ class ClipTile extends StatelessWidget {
   const ClipTile({
     super.key,
     required this.item,
-    required this.isSelected,
     required this.onCopy,
     required this.onPin,
     required this.onDelete,
   });
 
-  IconData get _typeIcon {
+  /// Ikona + etykieta typu tresci.
+  (IconData, String) get _typeMeta {
     switch (item.type) {
       case ClipContentType.link:
-        return Icons.link;
+        return (Icons.link, 'Link');
       case ClipContentType.email:
-        return Icons.alternate_email;
+        return (Icons.alternate_email, 'E-mail');
       case ClipContentType.multilineText:
-        return Icons.notes;
+        return (Icons.notes, 'Notatka');
       case ClipContentType.image:
-        return Icons.image_outlined;
+        return (Icons.image_outlined, 'Obraz');
       case ClipContentType.html:
-        return Icons.code;
+        return (Icons.code, 'HTML');
       case ClipContentType.rtf:
-        return Icons.description_outlined;
+        return (Icons.description_outlined, 'RTF');
       case ClipContentType.text:
-        return Icons.short_text;
+        return (Icons.short_text, 'Tekst');
     }
+  }
+
+  static String _previewText(String content) =>
+      content.length > 160 ? '${content.substring(0, 160)}…' : content;
+
+  /// Krotki czas wzgledny po polsku ("5 min temu", "wczoraj").
+  static String _relativeTime(DateTime dt) {
+    final diff = DateTime.now().difference(dt);
+    if (diff.inMinutes < 1) return 'przed chwilą';
+    if (diff.inMinutes < 60) return '${diff.inMinutes} min temu';
+    if (diff.inHours < 24) return '${diff.inHours} godz. temu';
+    if (diff.inDays == 1) return 'wczoraj';
+    if (diff.inDays < 7) return '${diff.inDays} dni temu';
+    final d = dt.day.toString().padLeft(2, '0');
+    final m = dt.month.toString().padLeft(2, '0');
+    return '$d.$m.${dt.year}';
   }
 
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    final preview = item.content.length > 160
-        ? '${item.content.substring(0, 160)}…'
-        : item.content;
+    final textTheme = Theme.of(context).textTheme;
+    final (typeIcon, typeLabel) = _typeMeta;
 
-    return AnimatedContainer(
-      duration: const Duration(milliseconds: 150),
-      margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+    final preview = item.isSecret ? '••••••••••••' : _previewText(item.content);
+    final meta = item.isSecret
+        ? 'Ukryty sekret'
+        : '${_relativeTime(item.copiedAt)}  •  $typeLabel'
+            '${item.useCount > 0 ? '  •  ${item.useCount}×' : ''}';
+
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
       decoration: BoxDecoration(
-        color: isSelected ? scheme.primaryContainer : scheme.surfaceContainerHigh,
-        borderRadius: BorderRadius.circular(12),
+        color: scheme.surfaceContainerHigh,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: scheme.outlineVariant.withValues(alpha: 0.4),
+        ),
       ),
       child: Material(
         color: Colors.transparent,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(16),
         child: InkWell(
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(16),
           onTap: onCopy,
-          onDoubleTap: onCopy,
           child: Padding(
-            padding: const EdgeInsets.all(12),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Icon(_typeIcon, size: 18, color: scheme.primary),
-                const SizedBox(width: 10),
+                _TypeBadge(
+                  icon: item.isSecret ? Icons.lock_outline : typeIcon,
+                  isSecret: item.isSecret,
+                ),
+                const SizedBox(width: 12),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
                     children: [
                       Text(
-                        item.isSecret ? '••••••••••••' : preview,
+                        preview,
                         maxLines: 3,
                         overflow: TextOverflow.ellipsis,
-                        style: Theme.of(context).textTheme.bodyMedium,
+                        style: textTheme.bodyMedium?.copyWith(height: 1.35),
                       ),
                       const SizedBox(height: 4),
-                      Text(
-                        '${item.useCount}× użyto',
-                        style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                              color: scheme.onSurfaceVariant,
+                      Row(
+                        children: [
+                          if (item.isPinned) ...[
+                            Icon(
+                              Icons.push_pin,
+                              size: 12,
+                              color: scheme.primary,
                             ),
+                            const SizedBox(width: 4),
+                          ],
+                          Expanded(
+                            child: Text(
+                              meta,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: textTheme.labelSmall?.copyWith(
+                                color: scheme.onSurfaceVariant,
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
                     ],
                   ),
                 ),
-                IconButton(
+                const SizedBox(width: 4),
+                _TileAction(
                   tooltip: item.isPinned ? 'Odepnij' : 'Przypnij',
-                  icon: Icon(
-                    item.isPinned ? Icons.push_pin : Icons.push_pin_outlined,
-                    size: 18,
-                  ),
+                  icon: item.isPinned
+                      ? Icons.push_pin
+                      : Icons.push_pin_outlined,
+                  active: item.isPinned,
                   onPressed: onPin,
                 ),
-                IconButton(
+                _TileAction(
                   tooltip: 'Usuń',
-                  icon: const Icon(Icons.delete_outline, size: 18),
+                  icon: Icons.delete_outline,
                   onPressed: onDelete,
                 ),
               ],
@@ -103,6 +150,64 @@ class ClipTile extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+/// Kolorowy znaczek typu tresci po lewej stronie karty.
+class _TypeBadge extends StatelessWidget {
+  final IconData icon;
+  final bool isSecret;
+
+  const _TypeBadge({required this.icon, required this.isSecret});
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Container(
+      width: 36,
+      height: 36,
+      decoration: BoxDecoration(
+        color: isSecret ? scheme.errorContainer : scheme.primaryContainer,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Icon(
+        icon,
+        size: 18,
+        color: isSecret
+            ? scheme.onErrorContainer
+            : scheme.onPrimaryContainer,
+      ),
+    );
+  }
+}
+
+/// Kompaktowy przycisk akcji (pinezka / kosz) — mniejszy cel dotyku
+/// i slabszy kolor, zeby nie konkurowal z trescia wpisu.
+class _TileAction extends StatelessWidget {
+  final String tooltip;
+  final IconData icon;
+  final bool active;
+  final VoidCallback onPressed;
+
+  const _TileAction({
+    required this.tooltip,
+    required this.icon,
+    this.active = false,
+    required this.onPressed,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return IconButton(
+      tooltip: tooltip,
+      icon: Icon(icon, size: 18),
+      padding: const EdgeInsets.all(6),
+      constraints: const BoxConstraints(),
+      splashRadius: 18,
+      color: active ? scheme.primary : scheme.onSurfaceVariant,
+      onPressed: onPressed,
     );
   }
 }
