@@ -8,13 +8,13 @@
 
 Everything you copy (Ctrl+C) — one keypress away from getting it back.
 
-[![Release](https://img.shields.io/github/v/release/allynIT/Clipboard-Manager?label=release&color=green)](https://github.com/allynIT/Clipboard-Manager/releases)
-[![Platform](https://img.shields.io/badge/platform-Windows%2010%2F11-blue)](https://github.com/allynIT/Clipboard-Manager/releases)
+[![Release](https://img.shields.io/github/v/release/Nikki/Clipboard-Manager?label=release&color=green)](https://github.com/Nikki/Clipboard-Manager/releases)
+[![Platform](https://img.shields.io/badge/platform-Windows%2010%2F11-blue)](https://github.com/Nikki/Clipboard-Manager/releases)
 [![Flutter](https://img.shields.io/badge/Flutter-3.47-blue?logo=flutter)](https://flutter.dev)
 [![Tests](https://img.shields.io/badge/tests-passing-green)](#tests)
 [![License](https://img.shields.io/badge/license-MIT-lightgrey)](#license)
 
-[⬇ Download latest](https://github.com/allynIT/Clipboard-Manager/releases/latest) · [Report a bug](https://github.com/allynIT/Clipboard-Manager/issues) · [How it works](#how-it-works)
+[⬇ Download latest](https://github.com/Nikki/Clipboard-Manager/releases/latest) · [Report a bug](https://github.com/Nikki/Clipboard-Manager/issues) · [How it works](#how-it-works)
 
 </div>
 
@@ -44,7 +44,7 @@ Everything you copy (Ctrl+C) — one keypress away from getting it back.
 
 ## Installation
 
-1. Download **`ClipVault-Windows-Portable.zip`** from [Releases](https://github.com/allynIT/Clipboard-Manager/releases/latest).
+1. Download **`ClipVault-Windows-Portable.zip`** from [Releases](https://github.com/Nikki/Clipboard-Manager/releases/latest).
 2. Unpack anywhere.
 3. Run **`clipvault.exe`** — no installer, no admin rights needed.
 
@@ -98,7 +98,7 @@ New release: bump `kAppVersion` (`lib/app_version.dart`) and `version` (`pubspec
 
 ## Author
 
-Made by **[allynIT](https://github.com/allynIT)** — bug reports and ideas welcome in [Issues](https://github.com/allynIT/Clipboard-Manager/issues).
+Made by **[Nikki](https://github.com/Nikki)** — bug reports and ideas welcome in [Issues](https://github.com/Nikki/Clipboard-Manager/issues).
 
 ## License
 
